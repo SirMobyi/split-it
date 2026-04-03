@@ -5,10 +5,15 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Users, PieChart, Zap } from 'lucide-react-native';
 import { useColors } from '../../src/hooks/use-colors';
 import { SPACING } from '../../src/constants/theme';
 import { Button } from '../../src/components/ui';
+
+async function markOnboardingSeen() {
+  await AsyncStorage.setItem('hasSeenOnboarding', 'true');
+}
 
 const { width } = Dimensions.get('window');
 
@@ -46,7 +51,10 @@ export default function OnboardingScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.skipRow}>
         {!isLastPage ? (
-          <TouchableOpacity onPress={() => router.replace('/(auth)/login')}>
+          <TouchableOpacity onPress={async () => {
+            await markOnboardingSeen();
+            router.replace('/(auth)/login');
+          }}>
             <Text style={[styles.skipText, { color: colors.textTertiary }]}>Skip</Text>
           </TouchableOpacity>
         ) : (
@@ -92,8 +100,9 @@ export default function OnboardingScreen() {
         <View style={styles.buttonRow}>
           <Button
             title={isLastPage ? 'Get Started' : 'Next'}
-            onPress={() => {
+            onPress={async () => {
               if (isLastPage) {
+                await markOnboardingSeen();
                 router.replace('/(auth)/login');
               } else {
                 scrollRef.current?.scrollTo({ x: (currentPage + 1) * width, animated: true });

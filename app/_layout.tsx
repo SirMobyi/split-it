@@ -1,8 +1,9 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, ActivityIndicator, Platform } from 'react-native';
 import { Slot, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as Linking from 'expo-linking';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { QueryClient, QueryClientProvider, onlineManager } from '@tanstack/react-query';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { supabase } from '../src/lib/supabase';
@@ -11,6 +12,8 @@ import { useAuthStore } from '../src/stores/auth-store';
 import { useColors } from '../src/hooks/use-colors';
 import { registerForPushNotifications } from '../src/utils/push-notifications';
 import type { PersistedClient, Persister } from '@tanstack/react-query-persist-client';
+
+const ONBOARDING_KEY = 'hasSeenOnboarding';
 
 // In-memory persister for TanStack Query cache (avoids AsyncStorage native module issues in Expo Go)
 function createPersister(): Persister {
@@ -48,6 +51,14 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   const { session, profile, isLoading, setSession, setProfile, setLoading } = useAuthStore();
   const segments = useSegments();
   const router = useRouter();
+  const [hasSeenOnboarding, setHasSeenOnboarding] = useState<boolean | null>(null);
+
+  // Read onboarding flag once on mount — must resolve before first route decision
+  useEffect(() => {
+    AsyncStorage.getItem(ONBOARDING_KEY)
+      .then((value) => setHasSeenOnboarding(value === 'true'))
+      .catch(() => setHasSeenOnboarding(true)); // on error, skip onboarding
+  }, []);
 
   // 1) Listen for auth state changes — ONLY update session, no DB queries here
   //    (DB queries inside onAuthStateChange can deadlock the Supabase JS client)
@@ -148,27 +159,32 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (isLoading) return;
+    if (isLoading || hasSeenOnboarding === null) return;
 
     const inAuthGroup = segments[0] === '(auth)';
+    const inOnboarding = segments[0] === '(auth)' && segments[1] === 'onboarding';
 
     if (!session) {
-      // Not logged in → go to login (unless already there)
-      if (!inAuthGroup) router.replace('/(auth)/login');
+      if (!hasSeenOnboarding) {
+        // First ever launch — show onboarding
+        if (!inOnboarding) router.replace('/(auth)/onboarding');
+      } else {
+        // Returning user, not logged in → login
+        if (!inAuthGroup) router.replace('/(auth)/login');
+      }
     } else if (!profile) {
-      // Logged in but no profile → go to profile setup (unless already there)
+      // Logged in but no profile → profile setup
       if (!inAuthGroup) router.replace('/(auth)/profile-setup');
     } else if (inAuthGroup) {
-      // Fully authenticated with profile but still on auth screen → go to tabs
+      // Fully authenticated → go to tabs
       router.replace('/(tabs)');
     }
-    // If authenticated + has profile + NOT on auth screen → stay where you are
-    // (could be /group/[id], /expense/[id], etc.)
-  }, [session, profile, isLoading, segments]);
+    // Authenticated + has profile + NOT on auth screen → stay put
+  }, [session, profile, isLoading, hasSeenOnboarding, segments]);
 
   const themeColors = useColors();
 
-  if (isLoading) {
+  if (isLoading || hasSeenOnboarding === null) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: themeColors.background }}>
         <ActivityIndicator size="large" color={themeColors.accent} />
