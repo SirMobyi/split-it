@@ -46,8 +46,8 @@ function groupExpensesByMonthYear(expenses: ExpenseWithSplits[]) {
   const groups: Record<string, ExpenseWithSplits[]> = {};
 
   for (const e of expenses) {
-    const d = new Date(e.created_at || e.transaction_date);
-    const month = d.toLocaleString(undefined, { month: 'long' });
+    // Use transaction_date for grouping (falls back to created_at)
+    const d = new Date(e.transaction_date || e.created_at);
     const year = d.getFullYear();
     const key = `${year}-${d.getMonth()}`;
     if (!groups[key]) groups[key] = [];
@@ -55,16 +55,25 @@ function groupExpensesByMonthYear(expenses: ExpenseWithSplits[]) {
   }
 
   const sections = Object.entries(groups).map(([key, items]) => {
-    // sort items by created_at descending (newest first)
-    items.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    // sort items by transaction_date (newest first), fallback to created_at
+    items.sort((a, b) => {
+      const da = new Date(a.transaction_date || a.created_at).getTime();
+      const db = new Date(b.transaction_date || b.created_at).getTime();
+      return db - da;
+    });
     const first = items[0];
-    const d = new Date(first.created_at || first.transaction_date);
+    const d = new Date(first.transaction_date || first.created_at);
     const title = `${d.toLocaleString(undefined, { month: 'long' })} ${d.getFullYear()}`;
     return { title, data: items } as { title: string; data: ExpenseWithSplits[] };
   });
 
   // sort sections by the date of their first item (newest month first)
-  sections.sort((a, b) => new Date(b.data[0].created_at).getTime() - new Date(a.data[0].created_at).getTime());
+  sections.sort((a, b) => {
+    const da = new Date(a.data[0].transaction_date || a.data[0].created_at).getTime();
+    const db = new Date(b.data[0].transaction_date || b.data[0].created_at).getTime();
+    return db - da;
+  });
+
   return sections;
 }
 
@@ -293,7 +302,7 @@ export default function GroupDetailScreen() {
                   </Text>
                 </View>
                 <Text style={[styles.expenseDate, { color: colors.textTertiary }]}> 
-                  {format(new Date(item.created_at), 'hh:mm a')}
+                  {format(new Date(item.transaction_date || item.created_at), 'hh:mm a')}
                 </Text>
               </View>
 
