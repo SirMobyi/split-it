@@ -46,17 +46,17 @@ function BalanceOverview() {
       <View style={styles.balanceRow}>
         <View style={styles.balanceItem}>
           <Text style={[styles.balanceLabel, { color: colors.textSecondary }]}>You are owed</Text>
-          <BalanceText amount={totalOwed} size="lg" showSign={false} />
+          <BalanceText amount={totalOwed} size="xl" showSign={false} />
         </View>
         <View style={styles.balanceItem}>
           <Text style={[styles.balanceLabel, { color: colors.textSecondary }]}>You owe</Text>
-          <BalanceText amount={-totalOwe} size="lg" showSign={false} />
+          <BalanceText amount={totalOwe} size="xl" showSign={false} />
         </View>
       </View>
 
       <View style={[styles.netRow, { backgroundColor: colors.surface }]}>
         <Text style={[styles.netLabel, { color: colors.textSecondary }]}>Net Balance</Text>
-        <BalanceText amount={totalOwed - totalOwe} size="md" />
+        <BalanceText amount={totalOwed - totalOwe} size="xl" />
       </View>
     </Card>
   );
@@ -187,18 +187,10 @@ export default function DashboardScreen() {
           <View style={styles.sectionHeader}>
             <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Groups</Text>
             <View style={styles.actionButtonsRow}>
-              <TouchableOpacity
-                style={[styles.actionPill, { backgroundColor: colors.accentDim }]}
-                onPress={() => router.push('/group/create')}
-              >
-                <Text style={[styles.actionPillText, { color: colors.accent }]}>Create</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.actionPill, { backgroundColor: colors.accentDim }]}
-                onPress={() => setShowJoin((s) => !s)}
-              >
-                <Text style={[styles.actionPillText, { color: colors.accent }]}>Join</Text>
-              </TouchableOpacity>
+              <View style={{ flexDirection: 'row', gap: SPACING.sm }}>
+                <Button title="Create" onPress={() => router.push('/group/create')} size="sm" variant="secondary" />
+                <Button title="Join" onPress={() => setShowJoin((s) => !s)} size="sm" variant="primary" />
+              </View>
             </View>
           </View>
 
@@ -293,14 +285,16 @@ export default function DashboardScreen() {
 
 const styles = StyleSheet.create({
   largeTitle: {
-    fontSize: 34,
-    fontWeight: '700',
+    fontSize: 38,
+    fontWeight: '800',
     letterSpacing: 0.37,
     marginTop: SPACING.lg,
     marginBottom: SPACING.lg,
   },
   overviewCard: {
     gap: SPACING.lg,
+    padding: SPACING.xl,
+    borderRadius: 20,
   },
   balanceRow: {
     flexDirection: 'row',
@@ -320,8 +314,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    borderRadius: 12,
-    paddingVertical: SPACING.md,
+    borderRadius: 16,
+    paddingVertical: SPACING.lg,
     paddingHorizontal: SPACING.lg,
   },
   netLabel: {
@@ -361,8 +355,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   groupName: {
-    fontSize: 17,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '700',
   },
   avatarRow: {
     flexDirection: 'row',
