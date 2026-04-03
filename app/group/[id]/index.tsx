@@ -1,0 +1,431 @@
+import React, { useState } from 'react';
+import { View, Text, FlatList, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
+import { Wallet, ArrowLeft, Info } from 'lucide-react-native';
+import { Screen, Card, Button, Avatar, Badge, BalanceText, EmptyState, BottomSheet, GroupIcon, UndoToast, SkeletonExpenseRow } from '../../../src/components/ui';
+import { useGroup } from '../../../src/hooks/use-groups';
+import { useGroupExpenses, useUpdateExpense, useDeleteExpense } from '../../../src/hooks/use-expenses';
+import { useGroupBalances } from '../../../src/hooks/use-balances';
+import { useAuthStore } from '../../../src/stores/auth-store';
+import { COLORS, SPACING, formatCurrency } from '../../../src/constants/theme';
+import { formatDistanceToNow, format } from 'date-fns';
+import type { AuditLogEntry, ExpenseWithSplits } from '../../../src/types/database';
+import { supabase } from '../../../src/lib/supabase';
+
+/** Computes a human-readable diff between previous and new audit states */
+function getAuditChanges(prev: Record<string, unknown> | null, next: Record<string, unknown> | null): string[] {
+  if (!prev || !next) return [];
+  const changes: string[] = [];
+  const fields: Record<string, string> = {
+    title: 'Title',
+    amount: 'Amount',
+    description: 'Description',
+    transaction_date: 'Date',
+    split_type: 'Split type',
+    status: 'Status',
+    note: 'Note',
+  };
+
+  for (const [key, label] of Object.entries(fields)) {
+    const oldVal = prev[key];
+    const newVal = next[key];
+    if (oldVal !== undefined && newVal !== undefined && oldVal !== newVal) {
+      if (key === 'amount') {
+        changes.push(`${label}: ${formatCurrency(Number(oldVal))} -> ${formatCurrency(Number(newVal))}`);
+      } else {
+        changes.push(`${label}: "${oldVal ?? '(empty)'}" -> "${newVal ?? '(empty)'}"`);
+      }
+    }
+  }
+  return changes;
+}
+
+function AuditLogModal({
+  visible,
+  onClose,
+  expenseId,
+  groupId,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  expenseId: string | null;
+  groupId: string;
+}) {
+  const [logs, setLogs] = React.useState<(AuditLogEntry & { modifier?: { full_name: string } })[]>([]);
+
+  React.useEffect(() => {
+    if (!visible || !expenseId) return;
+    let cancelled = false;
+
+    supabase
+      .from('audit_log')
+      .select('*, modifier:profiles!modified_by(full_name)')
+      .eq('expense_id', expenseId)
+      .order('created_at', { ascending: false })
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error) { console.error('Failed to fetch audit log:', error); return; }
+        setLogs((data as any) ?? []);
+      });
+
+    return () => { cancelled = true; };
+  }, [visible, expenseId]);
+
+  return (
+    <BottomSheet visible={visible} onClose={onClose} title="Edit History">
+      {logs.length === 0 ? (
+        <Text style={{ color: COLORS.textSecondary, textAlign: 'center', paddingVertical: 24 }}>
+          No edit history
+        </Text>
+      ) : (
+        <View style={{ gap: 16, paddingTop: 8 }}>
+          {logs.map((log) => {
+            const changes = getAuditChanges(log.previous_state, log.new_state);
+            return (
+              <View key={log.id} style={styles.auditRow}>
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Text style={styles.auditUser}>
+                    {(log as any).modifier?.full_name ?? 'Unknown'}
+                  </Text>
+                  <Text style={styles.auditTime}>
+                    {format(new Date(log.created_at), 'dd MMM yyyy, hh:mm a')}
+                  </Text>
+                  {changes.length > 0 && (
+                    <View style={styles.changesList}>
+                      {changes.map((c, i) => (
+                        <Text key={i} style={styles.changeText}>{c}</Text>
+                      ))}
+                    </View>
+                  )}
+                </View>
+                <Badge
+                  label={log.action}
+                  variant={log.action === 'CREATE' ? 'success' : log.action === 'DELETE' ? 'danger' : 'warning'}
+                />
+              </View>
+            );
+          })}
+        </View>
+      )}
+    </BottomSheet>
+  );
+}
+
+export default function GroupDetailScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const userId = useAuthStore((s) => s.session?.user.id);
+  const { data: group } = useGroup(id!);
+  const { data: expenses, isLoading: expLoading, isRefetching: expRefetching, refetch: refetchExpenses } = useGroupExpenses(id!);
+  const { data: balanceData } = useGroupBalances(id!);
+  const [auditExpenseId, setAuditExpenseId] = useState<string | null>(null);
+  const [showAudit, setShowAudit] = useState(false);
+
+  if (!group) return null;
+
+  const myBalance = balanceData?.balances.find((b) => b.userId === userId);
+
+  // Default group icon
+  const groupIcon = group.icon_url ?? 'Users';
+
+  return (
+    <Screen>
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity
+          onPress={() => router.push('/(tabs)')}
+          accessibilityLabel="Back"
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <ArrowLeft size={20} color={COLORS.accent} />
+        </TouchableOpacity>
+        <View style={styles.headerCenter}>
+          <GroupIcon name={groupIcon} size={18} color={COLORS.textPrimary} />
+          <Text style={styles.title} numberOfLines={1}>{group.name}</Text>
+        </View>
+        <TouchableOpacity
+          onPress={() => router.push(`/group/${id}/members`)}
+          accessibilityLabel="Members"
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Info size={20} color={COLORS.accent} />
+        </TouchableOpacity>
+      </View>
+
+      {/* Balance Card */}
+      <Card style={styles.balanceCard}>
+        <Text style={styles.balanceLabel}>Your Balance</Text>
+        <BalanceText amount={myBalance?.netBalance ?? 0} size="xl" />
+        {balanceData && balanceData.simplifiedDebts.length > 0 && (
+          <View style={styles.debtsPreview}>
+            {balanceData.simplifiedDebts.slice(0, 3).map((debt, i) => (
+              <Text key={i} style={styles.debtLine}>
+                {debt.fromName} → {debt.toName}: {formatCurrency(debt.amount)}
+              </Text>
+            ))}
+          </View>
+        )}
+        <View style={styles.balanceActions}>
+          <Button
+            title="+ Add Expense"
+            onPress={() => router.push(`/group/${id}/add-expense`)}
+            size="sm"
+          />
+          <Button
+            title="Settle Up"
+            onPress={() => router.push(`/group/${id}/settle`)}
+            variant="secondary"
+            size="sm"
+          />
+        </View>
+      </Card>
+
+      {/* Expense List */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Expenses</Text>
+      </View>
+
+      <FlatList
+        data={expenses ?? []}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={{ gap: 1, paddingBottom: 100 }}
+        showsVerticalScrollIndicator={false}
+        refreshing={expRefetching}
+        onRefresh={refetchExpenses}
+        ListEmptyComponent={
+          expLoading ? (
+            <>
+              <SkeletonExpenseRow />
+              <SkeletonExpenseRow />
+              <SkeletonExpenseRow />
+            </>
+          ) : (
+            <EmptyState
+              IconComponent={Wallet}
+              title="No expenses yet"
+              description="Add your first expense to start tracking"
+              actionLabel="Add Expense"
+              onAction={() => router.push(`/group/${id}/add-expense`)}
+            />
+          )
+        }
+        renderItem={({ item }) => {
+          const isEdited = item.updated_at !== item.created_at;
+          const myShare = item.splits?.find((s) => s.user_id === userId);
+          const isPayer = myShare?.is_payer;
+          const payerSplit = item.splits?.find((s) => s.is_payer);
+          const payer = payerSplit?.user ?? item.creator;
+          const payerName = payer?.full_name ?? 'Unknown';
+
+          // "You lent" is simply what you paid minus your own share.
+          // This is resilient even if other users' splits fail to load or are missing from DB.
+          const lentAmount = isPayer
+            ? item.amount - Number(myShare?.owed_amount ?? 0)
+            : 0;
+
+          return (
+            <TouchableOpacity
+              activeOpacity={0.7}
+              style={styles.expenseRow}
+              onPress={() => {
+                router.push(`/group/${id}/edit-expense?expenseId=${item.id}`);
+              }}
+              onLongPress={() => {
+                setAuditExpenseId(item.id);
+                setShowAudit(true);
+              }}
+            >
+              <View style={{ flex: 1, gap: 3 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Text style={styles.expenseTitle}>{item.title}</Text>
+                </View>
+                {item.description ? (
+                  <Text style={styles.expenseDesc} numberOfLines={1}>
+                    {item.description}
+                  </Text>
+                ) : null}
+                <View style={styles.payerInfoRow}>
+                  <Avatar
+                    name={payer?.full_name ?? 'Unknown'}
+                    uri={payer?.avatar_url ?? undefined}
+                    size={20}
+                  />
+                  <Text style={styles.payerInfoText} numberOfLines={1}>
+                    {(payer?.id === userId ? 'You' : payerName)} paid {formatCurrency(item.amount)}
+                  </Text>
+                </View>
+                <Text style={styles.expenseDate}>
+                  {format(new Date(item.transaction_date), 'dd MMM yyyy')}
+                  {' · '}
+                  {format(new Date(item.created_at), 'hh:mm a')}
+                </Text>
+              </View>
+
+              <View style={{ alignItems: 'flex-end', gap: 4 }}>
+                {!myShare ? (
+                  <Text style={{ color: COLORS.textTertiary, fontSize: 13, fontWeight: '500', marginTop: isEdited ? 16 : 0 }}>
+                    Not involved
+                  </Text>
+                ) : isPayer ? (
+                  <Text style={{ color: COLORS.success, fontSize: 16, fontWeight: '700', marginTop: isEdited ? 16 : 0 }}>
+                    + {formatCurrency(lentAmount)}
+                  </Text>
+                ) : (
+                  <Text style={{ color: COLORS.danger, fontSize: 16, fontWeight: '700', marginTop: isEdited ? 16 : 0 }}>
+                    - {formatCurrency(Number(myShare.owed_amount) ?? 0)}
+                  </Text>
+                )}
+              </View>
+
+              {isEdited && (
+                <View style={{ position: 'absolute', top: SPACING.sm, right: SPACING.sm }}>
+                  <Badge label="Edited" variant="neutral" size="sm" />
+                </View>
+              )}
+            </TouchableOpacity>
+          );
+        }}
+      />
+
+      <AuditLogModal
+        visible={showAudit}
+        onClose={() => setShowAudit(false)}
+        expenseId={auditExpenseId}
+        groupId={id!}
+      />
+
+      {/* Deletion is handled from Dashboard only — removed inline delete controls here */}
+
+      <UndoToast />
+    </Screen>
+  );
+}
+
+const styles = StyleSheet.create({
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: SPACING.md,
+  },
+  headerCenter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flex: 1,
+    justifyContent: 'center',
+    marginHorizontal: 8,
+  },
+  backBtn: {
+    fontSize: 16,
+    color: COLORS.accent,
+    fontWeight: '600',
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: COLORS.textPrimary,
+  },
+  membersBtn: {
+    fontSize: 14,
+    color: COLORS.accent,
+    fontWeight: '600',
+  },
+  balanceCard: {
+    marginTop: SPACING.sm,
+    alignItems: 'center',
+    gap: SPACING.md,
+  },
+  balanceLabel: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    fontWeight: '500',
+  },
+  debtsPreview: {
+    width: '100%',
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+    paddingTop: SPACING.md,
+    gap: 4,
+  },
+  debtLine: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+  },
+  balanceActions: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+  },
+  section: {
+    paddingTop: SPACING.xl,
+    paddingBottom: SPACING.sm,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.textPrimary,
+  },
+  expenseRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  expenseTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: COLORS.textPrimary,
+  },
+  expenseDesc: {
+    fontSize: 13,
+    color: COLORS.textTertiary,
+    fontStyle: 'italic',
+  },
+  expenseMeta: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+  },
+  payerInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  payerInfoText: {
+    color: COLORS.textSecondary,
+    fontSize: 13,
+    flex: 1,
+  },
+  expenseDate: {
+    fontSize: 11,
+    color: COLORS.textTertiary,
+  },
+  tapHint: {
+    fontSize: 10,
+    color: COLORS.textTertiary,
+  },
+  auditRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  auditUser: {
+    fontSize: 14,
+    color: COLORS.textPrimary,
+    fontWeight: '500',
+  },
+  auditTime: {
+    fontSize: 12,
+    color: COLORS.textTertiary,
+  },
+  changesList: {
+    marginTop: 4,
+    gap: 2,
+    paddingLeft: 4,
+  },
+  changeText: {
+    fontSize: 12,
+    color: COLORS.warning,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+});
