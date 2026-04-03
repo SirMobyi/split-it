@@ -3,7 +3,8 @@ import { View, Text, StyleSheet, Alert, Platform } from 'react-native';
 import { router } from 'expo-router';
 import { Screen, Button, Input } from '../../src/components/ui';
 import { useCreateGroup } from '../../src/hooks/use-groups';
-import { COLORS, SPACING } from '../../src/constants/theme';
+import { SPACING } from '../../src/constants/theme';
+import { useColors } from '../../src/hooks/use-colors';
 
 function showAlert(title: string, message: string) {
   if (Platform.OS === 'web') {
@@ -14,6 +15,7 @@ function showAlert(title: string, message: string) {
 }
 
 export default function CreateGroupScreen() {
+  const colors = useColors();
   const [name, setName] = useState('');
   const [error, setError] = useState('');
   const createGroup = useCreateGroup();
@@ -39,7 +41,7 @@ export default function CreateGroupScreen() {
     <Screen scrollable>
       <View style={styles.header}>
         <Button title="Cancel" onPress={() => router.push('/(tabs)')} variant="ghost" size="sm" />
-        <Text style={styles.title}>New Group</Text>
+        <Text style={[styles.title, { color: colors.textPrimary }]}>New Group</Text>
         <View style={{ width: 60 }} />
       </View>
 
@@ -73,9 +75,8 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.md,
   },
   title: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '700',
-    color: COLORS.textPrimary,
   },
   form: {
     marginTop: SPACING.xxl,

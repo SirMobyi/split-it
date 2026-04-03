@@ -3,9 +3,11 @@ import { View, Text, TextInput, StyleSheet, Alert } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Screen, Button } from '../../src/components/ui';
 import { supabase } from '../../src/lib/supabase';
-import { COLORS, SPACING } from '../../src/constants/theme';
+import { useColors } from '../../src/hooks/use-colors';
+import { SPACING } from '../../src/constants/theme';
 
 export default function OTPScreen() {
+  const colors = useColors();
   const { phone, email } = useLocalSearchParams<{ phone?: string; email?: string }>();
   const isEmail = !!email;
   const OTP_LENGTH = isEmail ? 8 : 6;
@@ -52,9 +54,11 @@ export default function OTPScreen() {
   return (
     <Screen scrollable>
       <View style={styles.container}>
-        <Text style={styles.title}>{isEmail ? 'Check your email' : 'Verify your number'}</Text>
-        <Text style={styles.subtitle}>
-          Enter the 6-digit code sent to {isEmail ? email : phone}
+        <Text style={[styles.title, { color: colors.textPrimary }]}>
+          {isEmail ? 'Check your email' : 'Verify your number'}
+        </Text>
+        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+          Enter the code sent to {isEmail ? email : phone}
         </Text>
 
         <View style={styles.otpContainer}>
@@ -62,7 +66,13 @@ export default function OTPScreen() {
             <TextInput
               key={i}
               ref={(r) => { inputs.current[i] = r; }}
-              style={[styles.otpInput, digit ? styles.otpFilled : null]}
+              style={[
+                styles.otpInput,
+                {
+                  backgroundColor: digit ? colors.accentDim : colors.surface,
+                  color: colors.textPrimary,
+                },
+              ]}
               value={digit}
               onChangeText={(t) => handleChange(t, i)}
               onKeyPress={({ nativeEvent }) => handleKeyPress(nativeEvent.key, i)}
@@ -108,33 +118,24 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 28,
-    fontWeight: '800',
-    color: COLORS.textPrimary,
+    fontWeight: '700',
   },
   subtitle: {
-    fontSize: 15,
-    color: COLORS.textSecondary,
+    fontSize: 17,
     marginTop: -12,
+    lineHeight: 24,
   },
   otpContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 10,
+    gap: 12,
   },
   otpInput: {
-    width: 40,
-    height: 50,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    width: 48,
+    height: 56,
     borderRadius: 12,
-    backgroundColor: COLORS.surface,
-    color: COLORS.textPrimary,
     fontSize: 22,
     fontWeight: '700',
     textAlign: 'center',
-  },
-  otpFilled: {
-    borderColor: COLORS.accent,
-    backgroundColor: COLORS.accentDim,
   },
 });

@@ -9,10 +9,12 @@ import { useAuthStore } from '../../../src/stores/auth-store';
 import { exportGroupPDF } from '../../../src/utils/pdf-export';
 import { useGroupExpenses } from '../../../src/hooks/use-expenses';
 import { useGroupPayments } from '../../../src/hooks/use-payments';
-import { COLORS, SPACING, formatCurrency } from '../../../src/constants/theme';
+import { SPACING, formatCurrency } from '../../../src/constants/theme';
+import { useColors } from '../../../src/hooks/use-colors';
 import { GroupIcon, GROUP_ICON_NAMES } from '../../../src/components/ui';
 
 export default function MembersScreen() {
+  const colors = useColors();
   const { id: groupId } = useLocalSearchParams<{ id: string }>();
   const userId = useAuthStore((s) => s.session?.user.id);
   const { data: group } = useGroup(groupId!);
@@ -95,20 +97,20 @@ export default function MembersScreen() {
     <Screen scrollable>
       <View style={styles.header}>
         <Button title="Close" onPress={() => router.push(`/group/${groupId}`)} variant="ghost" size="sm" />
-        <Text style={styles.headerTitle}>Members</Text>
+        <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Members</Text>
         <View style={{ width: 60 }} />
       </View>
 
       {error ? (
-        <View style={styles.errorBox}>
-          <Text style={styles.errorText}>{error}</Text>
+        <View style={[styles.errorBox, { backgroundColor: colors.dangerDim }]}>
+          <Text style={[styles.errorText, { color: colors.danger }]}>{error}</Text>
         </View>
       ) : null}
 
       {/* Group Info Card */}
       <Card style={{ alignItems: 'center', gap: SPACING.md }}>
-        <GroupIcon name={currentIcon} size={40} color={COLORS.accent} />
-        <Text style={{ fontSize: 20, fontWeight: '700', color: COLORS.textPrimary }}>{group.name}</Text>
+        <GroupIcon name={currentIcon} size={40} color={colors.accent} />
+        <Text style={{ fontSize: 20, fontWeight: '700', color: colors.textPrimary }}>{group.name}</Text>
         {isCreator && (
           <Button title="Edit Group" onPress={openEditGroup} variant="secondary" size="sm" />
         )}
@@ -116,10 +118,10 @@ export default function MembersScreen() {
 
       {/* Invite Section */}
       <Card style={{ gap: SPACING.md, marginTop: SPACING.lg }}>
-        <Text style={styles.sectionTitle}>Invite Friends</Text>
+        <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Invite Friends</Text>
         <View style={styles.codeRow}>
-          <Text style={styles.codeLabel}>Invite Code</Text>
-          <Text style={styles.code}>{group.invite_code}</Text>
+          <Text style={[styles.codeLabel, { color: colors.textSecondary }]}>Invite Code</Text>
+          <Text style={[styles.code, { color: colors.accent }]}>{group.invite_code}</Text>
         </View>
 
         <View style={{ flexDirection: 'row', gap: SPACING.sm }}>
@@ -129,15 +131,15 @@ export default function MembersScreen() {
 
         {showQR && (
           <View style={styles.qrContainer}>
-            <QRCode value={inviteLink} size={180} backgroundColor={COLORS.surface} color={COLORS.textPrimary} />
-            <Text style={styles.qrHint}>Scan to join the group</Text>
+            <QRCode value={inviteLink} size={180} backgroundColor={colors.surface} color={colors.textPrimary} />
+            <Text style={[styles.qrHint, { color: colors.textTertiary }]}>Scan to join the group</Text>
           </View>
         )}
       </Card>
 
       {/* Member List */}
       <View style={{ marginTop: SPACING.xl }}>
-        <Text style={styles.sectionTitle}>
+        <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
           Members ({group.members?.filter((m) => m.status === 'ACTIVE').length})
         </Text>
 
@@ -147,7 +149,7 @@ export default function MembersScreen() {
             const isMe = member.user_id === userId;
 
             return (
-              <View key={member.id} style={styles.memberRow}>
+              <View key={member.id} style={[styles.memberRow, { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.borderLight }]}>
                 <Avatar
                   name={member.profile?.full_name ?? '?'}
                   uri={member.profile?.avatar_url}
@@ -155,25 +157,25 @@ export default function MembersScreen() {
                 />
                 <View style={{ flex: 1 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <Text style={styles.memberName}>
+                    <Text style={[styles.memberName, { color: colors.textPrimary }]}>
                       {member.profile?.full_name ?? 'Unknown'}
                     </Text>
                     {isMe && <Badge label="You" variant="info" size="sm" />}
                     {member.user_id === group.created_by && <Badge label="Creator" variant="success" size="sm" />}
                     {member.status === 'INACTIVE' && <Badge label="Inactive" variant="neutral" size="sm" />}
                   </View>
-                  <Text style={styles.memberUsername}>@{member.profile?.username}</Text>
+                  <Text style={[styles.memberUsername, { color: colors.textTertiary }]}>@{member.profile?.username}</Text>
                 </View>
                 {balance && (
                   <Text
                     style={{
-                      fontSize: 14,
+                      fontSize: 15,
                       fontWeight: '600',
                       color: balance.netBalance > 0.01
-                        ? COLORS.accent
+                        ? colors.accent
                         : balance.netBalance < -0.01
-                          ? COLORS.danger
-                          : COLORS.textTertiary,
+                          ? colors.danger
+                          : colors.textTertiary,
                     }}
                   >
                     {balance.netBalance > 0.01
@@ -203,8 +205,8 @@ export default function MembersScreen() {
       >
         <View style={{ gap: SPACING.lg, paddingTop: 8 }}>
           {editError ? (
-            <View style={styles.errorBox}>
-              <Text style={styles.errorText}>{editError}</Text>
+            <View style={[styles.errorBox, { backgroundColor: colors.dangerDim }]}>
+              <Text style={[styles.errorText, { color: colors.danger }]}>{editError}</Text>
             </View>
           ) : null}
 
@@ -216,15 +218,19 @@ export default function MembersScreen() {
           />
 
           <View style={{ gap: 6 }}>
-            <Text style={styles.iconLabel}>Group Icon</Text>
+            <Text style={[styles.iconLabel, { color: colors.textSecondary }]}>Group Icon</Text>
             <View style={styles.iconGrid}>
               {GROUP_ICON_NAMES.map((icon) => (
                 <TouchableOpacity
                   key={icon}
-                  style={[styles.iconCell, editIcon === icon && styles.iconCellActive]}
+                  style={[
+                    styles.iconCell,
+                    { backgroundColor: colors.surface },
+                    editIcon === icon && { backgroundColor: colors.accentDim },
+                  ]}
                   onPress={() => setEditIcon(icon)}
                 >
-                  <GroupIcon name={icon} size={24} color={editIcon === icon ? COLORS.accent : COLORS.textPrimary} />
+                  <GroupIcon name={icon} size={24} color={editIcon === icon ? colors.accent : colors.textPrimary} />
                 </TouchableOpacity>
               ))}
             </View>
@@ -250,27 +256,21 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.md,
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '700',
-    color: COLORS.textPrimary,
   },
   errorBox: {
-    backgroundColor: COLORS.dangerDim,
-    borderWidth: 1,
-    borderColor: COLORS.danger,
     borderRadius: 12,
     padding: SPACING.lg,
     marginBottom: SPACING.sm,
   },
   errorText: {
-    color: COLORS.danger,
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '500',
   },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: COLORS.textPrimary,
   },
   codeRow: {
     flexDirection: 'row',
@@ -279,12 +279,10 @@ const styles = StyleSheet.create({
   },
   codeLabel: {
     fontSize: 13,
-    color: COLORS.textSecondary,
   },
   code: {
     fontSize: 18,
     fontWeight: '700',
-    color: COLORS.accent,
     letterSpacing: 2,
   },
   qrContainer: {
@@ -293,28 +291,22 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.lg,
   },
   qrHint: {
-    fontSize: 12,
-    color: COLORS.textTertiary,
+    fontSize: 13,
   },
   memberRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     paddingVertical: SPACING.md,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
   },
   memberName: {
     fontSize: 15,
     fontWeight: '600',
-    color: COLORS.textPrimary,
   },
   memberUsername: {
-    fontSize: 12,
-    color: COLORS.textTertiary,
+    fontSize: 13,
   },
   iconLabel: {
-    color: COLORS.textSecondary,
     fontSize: 13,
     fontWeight: '500',
   },
@@ -327,14 +319,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 12,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.surface2,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  iconCellActive: {
-    borderColor: COLORS.accent,
-    backgroundColor: COLORS.accentDim,
   },
 });

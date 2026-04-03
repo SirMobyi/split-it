@@ -1,6 +1,6 @@
 import React from 'react';
 import { Text, TextStyle } from 'react-native';
-import { COLORS } from '../../constants/theme';
+import { useColors } from '../../hooks/use-colors';
 import { formatCurrency } from '../../constants/theme';
 
 interface BalanceTextProps {
@@ -11,21 +11,22 @@ interface BalanceTextProps {
 }
 
 const sizeMap: Record<string, number> = {
-  sm: 13,
-  md: 16,
+  sm: 15,
+  md: 17,
   lg: 22,
-  xl: 32,
+  xl: 34,
 };
 
 export function BalanceText({ amount, size = 'md', showSign = true, style }: BalanceTextProps) {
+  const colors = useColors();
   const isPositive = amount > 0;
   const isZero = Math.abs(amount) < 0.01;
 
   const color = isZero
-    ? COLORS.textTertiary
+    ? colors.textTertiary
     : isPositive
-      ? COLORS.success
-      : COLORS.danger;
+      ? colors.success
+      : colors.danger;
 
   const sign = isZero ? '' : isPositive ? '+' : '-';
   const displayAmount = formatCurrency(Math.abs(amount));

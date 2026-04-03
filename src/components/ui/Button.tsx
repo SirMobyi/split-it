@@ -18,19 +18,19 @@ interface ButtonProps {
   icon?: React.ReactNode;
 }
 
-function getVariantStyles(colors: ColorPalette): Record<ButtonVariant, { bg: string; text: string; border?: string }> {
+function getVariantStyles(colors: ColorPalette): Record<ButtonVariant, { bg: string; text: string }> {
   return {
     primary: { bg: colors.accent, text: '#FFFFFF' },
-    secondary: { bg: colors.surface2, text: colors.textPrimary, border: colors.borderLight },
-    danger: { bg: colors.dangerDim, text: colors.danger, border: colors.dangerDim },
-    ghost: { bg: 'transparent', text: colors.textSecondary },
+    secondary: { bg: colors.accentDim, text: colors.accent },
+    danger: { bg: colors.dangerDim, text: colors.danger },
+    ghost: { bg: 'transparent', text: colors.accent },
   };
 }
 
 const sizeStyles: Record<ButtonSize, { height: number; px: number; fontSize: number }> = {
-  sm: { height: 36, px: 16, fontSize: 13 },
-  md: { height: 48, px: 20, fontSize: 15 },
-  lg: { height: 56, px: 24, fontSize: 16 },
+  sm: { height: 44, px: 20, fontSize: 15 },
+  md: { height: 50, px: 24, fontSize: 17 },
+  lg: { height: 56, px: 28, fontSize: 17 },
 };
 
 export function Button({
@@ -58,13 +58,12 @@ export function Button({
           height: s.height,
           paddingHorizontal: s.px,
           backgroundColor: v.bg,
-          borderRadius: RADIUS.xl, // Increased to 24px for modern aesthetic
+          borderRadius: RADIUS.xl,
           flexDirection: 'row',
           alignItems: 'center',
           justifyContent: 'center',
           gap: 8,
           opacity: isDisabled ? 0.5 : 1,
-          ...(v.border ? { borderWidth: 1.5, borderColor: v.border } : {}),
           ...(fullWidth ? { width: '100%' } : {}),
         } as ViewStyle,
       ]}

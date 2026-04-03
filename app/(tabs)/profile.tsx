@@ -1,15 +1,15 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import { Camera, Loader } from 'lucide-react-native';
+import { Camera, Loader, ChevronRight } from 'lucide-react-native';
 import { useQueryClient } from '@tanstack/react-query';
-import { Screen, Card, Button, Input, Avatar, ImageCropper } from '../../src/components/ui';
+import { Screen, Button, Input, Avatar, ImageCropper } from '../../src/components/ui';
 import { useAuthStore } from '../../src/stores/auth-store';
 import { useColors } from '../../src/hooks/use-colors';
 import { supabase } from '../../src/lib/supabase';
 import { restUpdate } from '../../src/lib/supabase-rest';
-import { COLORS, SPACING } from '../../src/constants/theme';
+import { SPACING, RADIUS } from '../../src/constants/theme';
 
 export default function ProfileScreen() {
   const { profile, setProfile, reset } = useAuthStore();
@@ -58,23 +58,19 @@ export default function ProfileScreen() {
 
   const handlePickAvatar = async () => {
     setError('');
-
     try {
-      // Request permission
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
         setError('Camera roll permission is needed to change your photo');
         return;
       }
-
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
-        allowsEditing: Platform.OS !== 'web', // Use our custom cropper on web
+        allowsEditing: Platform.OS !== 'web',
         aspect: [1, 1],
         quality: 0.7,
         base64: Platform.OS === 'web',
       });
-
       if (result.canceled || !result.assets?.[0]) return;
 
       const asset = result.assets[0];
@@ -84,21 +80,14 @@ export default function ProfileScreen() {
         : pickedUri;
 
       if (Platform.OS === 'web') {
-        if (!webImageUri) {
-          throw new Error('Unable to read selected image');
-        }
-        // On web, show cropper with data URL or URI
+        if (!webImageUri) throw new Error('Unable to read selected image');
         setSelectedImageUri(webImageUri);
         setShowCropper(true);
       } else {
-        if (!pickedUri) {
-          throw new Error('Unable to read selected image');
-        }
-        // On native, upload directly (already cropped by image picker)
+        if (!pickedUri) throw new Error('Unable to read selected image');
         await uploadAvatar(pickedUri);
       }
     } catch (e: any) {
-      console.error('Image picker error:', e);
       setError(e.message || 'Failed to select image');
     }
   };
@@ -112,10 +101,7 @@ export default function ProfileScreen() {
   const uploadAvatar = async (imageUri: string) => {
     setUploadingAvatar(true);
     try {
-      // Validate image
-      if (!imageUri) {
-        throw new Error('Invalid image selected');
-      }
+      if (!imageUri) throw new Error('Invalid image selected');
 
       const response = await fetch(imageUri);
       const blob = await response.blob();
@@ -127,59 +113,30 @@ export default function ProfileScreen() {
 
       const uploadResult = await supabase.storage
         .from('avatars')
-        .upload(fileName, blob, {
-          cacheControl: '3600',
-          upsert: true,
-          contentType: mimeType,
-        });
+        .upload(fileName, blob, { cacheControl: '3600', upsert: true, contentType: mimeType });
 
-      if (uploadResult.error) {
-        throw uploadResult.error;
-      }
+      if (uploadResult.error) throw uploadResult.error;
 
-      // Optimistic UI update with local preview while upload completes
-      const optimisticAvatar = imageUri;
-      if (profile) {
-        setProfile({ ...profile, avatar_url: optimisticAvatar });
-      }
+      if (profile) setProfile({ ...profile, avatar_url: imageUri });
 
-      // Get public URL
-      const { data: urlData } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(fileName);
+      const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(fileName);
+      if (!urlData?.publicUrl) throw new Error('Failed to get image URL');
 
-      if (!urlData?.publicUrl) {
-        throw new Error('Failed to get image URL');
-      }
+      const avatarUrl = `${urlData.publicUrl}?t=${Date.now()}`;
 
-      const avatarUrl = `${urlData.publicUrl}?t=${Date.now()}`; // cache bust
-
-      // Update profile
       let updateResult;
       if (Platform.OS === 'web') {
-        updateResult = await restUpdate('profiles', {
-          avatar_url: avatarUrl,
-        }, { eq: { id: profile!.id }, select: '*', single: true });
+        updateResult = await restUpdate('profiles', { avatar_url: avatarUrl }, { eq: { id: profile!.id }, select: '*', single: true });
         if (updateResult.error) throw new Error(updateResult.error.message);
       } else {
-        updateResult = await supabase
-          .from('profiles')
-          .update({ avatar_url: avatarUrl })
-          .eq('id', profile!.id)
-          .select()
-          .single();
+        updateResult = await supabase.from('profiles').update({ avatar_url: avatarUrl }).eq('id', profile!.id).select().single();
         if (updateResult.error) throw updateResult.error;
       }
 
-      // Only update local state if database update succeeded
       setProfile(updateResult.data);
-
-      // Invalidate group caches so the new avatar propagates instantly
       queryClient.invalidateQueries({ queryKey: ['groups'] });
       queryClient.invalidateQueries({ queryKey: ['group'] });
-
     } catch (e: any) {
-      console.error('Avatar upload error:', e);
       setError(e.message || 'Failed to upload photo. Please try again.');
     } finally {
       setUploadingAvatar(false);
@@ -197,59 +154,64 @@ export default function ProfileScreen() {
   return (
     <Screen scrollable>
       <View style={styles.header}>
-        <Text style={styles.title}>Profile</Text>
+        <Text style={[styles.title, { color: colors.textPrimary }]}>Profile</Text>
       </View>
 
       <View style={styles.avatarSection}>
         <TouchableOpacity onPress={handlePickAvatar} disabled={uploadingAvatar}>
-          <Avatar name={profile.full_name} uri={profile.avatar_url} size={80} />
-          <View style={styles.cameraOverlay}>
+          <Avatar name={profile.full_name} uri={profile.avatar_url} size={96} />
+          <View style={[styles.cameraOverlay, { backgroundColor: colors.accent }]}>
             {uploadingAvatar
               ? <Loader size={14} color="#FFFFFF" />
               : <Camera size={14} color="#FFFFFF" />
             }
           </View>
         </TouchableOpacity>
-        <Text style={styles.name}>{profile.full_name}</Text>
-        <Text style={styles.username}>@{profile.username}</Text>
-        <Text style={styles.changePhotoHint}>
-          {uploadingAvatar ? 'Uploading...' : Platform.OS === 'web' ? 'Tap photo to change (square images work best)' : 'Tap photo to change'}
+        <Text style={[styles.name, { color: colors.textPrimary }]}>{profile.full_name}</Text>
+        <Text style={[styles.username, { color: colors.textSecondary }]}>@{profile.username}</Text>
+        <Text style={[styles.changePhotoHint, { color: colors.textTertiary }]}>
+          {uploadingAvatar ? 'Uploading...' : 'Tap photo to change'}
         </Text>
       </View>
 
       {error ? (
-        <View style={styles.errorBox}>
-          <Text style={styles.errorText}>{error}</Text>
+        <View style={[styles.errorBox, { backgroundColor: colors.dangerDim }]}>
+          <Text style={[styles.errorText, { color: colors.danger }]}>{error}</Text>
         </View>
       ) : null}
 
-      <Card style={{ gap: SPACING.lg }}>
-        {editing ? (
-          <>
+      {editing ? (
+        <View style={[styles.groupedSection, { backgroundColor: colors.surface2 }]}>
+          <View style={{ gap: SPACING.lg, padding: SPACING.lg }}>
             <Input label="Full Name" value={fullName} onChangeText={setFullName} />
             <Input label="UPI ID" value={upiVpa} onChangeText={setUpiVpa} placeholder="name@upi" autoCapitalize="none" />
             <View style={styles.editActions}>
               <Button title="Cancel" onPress={() => { setEditing(false); setError(''); }} variant="secondary" />
               <Button title="Save" onPress={handleSave} loading={loading} />
             </View>
-          </>
-        ) : (
-          <>
-            <View style={styles.infoRow}>
-              <Text style={styles.label}>Phone</Text>
-              <Text style={styles.value}>{profile.phone_number ?? 'Not set'}</Text>
-            </View>
-            <View style={styles.infoRow}>
-              <Text style={styles.label}>UPI ID</Text>
-              <Text style={styles.value}>{profile.upi_vpa ?? 'Not set'}</Text>
-            </View>
-            <Button title="Edit Profile" onPress={() => setEditing(true)} variant="secondary" fullWidth />
-          </>
-        )}
-      </Card>
+          </View>
+        </View>
+      ) : (
+        <View style={[styles.groupedSection, { backgroundColor: colors.surface2 }]}>
+          <View style={[styles.groupedRow, { borderBottomColor: colors.borderLight }]}>
+            <Text style={[styles.label, { color: colors.textSecondary }]}>Phone</Text>
+            <Text style={[styles.value, { color: colors.textPrimary }]}>{profile.phone_number ?? 'Not set'}</Text>
+          </View>
+          <View style={[styles.groupedRow, { borderBottomColor: colors.borderLight }]}>
+            <Text style={[styles.label, { color: colors.textSecondary }]}>UPI ID</Text>
+            <Text style={[styles.value, { color: colors.textPrimary }]}>{profile.upi_vpa ?? 'Not set'}</Text>
+          </View>
+          <TouchableOpacity style={styles.groupedRow} onPress={() => setEditing(true)}>
+            <Text style={[styles.label, { color: colors.accent }]}>Edit Profile</Text>
+            <ChevronRight size={18} color={colors.textTertiary} />
+          </TouchableOpacity>
+        </View>
+      )}
 
-      <View style={{ marginTop: SPACING.xxl }}>
-        <Button title="Sign Out" onPress={handleLogout} variant="danger" fullWidth />
+      <View style={{ marginTop: SPACING.xxxl, alignItems: 'center' }}>
+        <TouchableOpacity onPress={handleLogout} style={{ paddingVertical: SPACING.md }}>
+          <Text style={{ fontSize: 17, color: colors.danger, fontWeight: '500' }}>Sign Out</Text>
+        </TouchableOpacity>
       </View>
 
       <ImageCropper
@@ -270,9 +232,9 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.lg,
   },
   title: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: COLORS.textPrimary,
+    fontSize: 34,
+    fontWeight: '700',
+    letterSpacing: 0.37,
   },
   avatarSection: {
     alignItems: 'center',
@@ -283,57 +245,57 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 0,
     right: 0,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: COLORS.accent,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
-    borderColor: COLORS.background,
-  },
-  cameraIcon: {
-    fontSize: 14,
+    borderColor: '#FFFFFF',
   },
   changePhotoHint: {
-    fontSize: 12,
-    color: COLORS.textTertiary,
+    fontSize: 13,
     marginTop: 2,
   },
   name: {
     fontSize: 22,
     fontWeight: '700',
-    color: COLORS.textPrimary,
   },
   username: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
+    fontSize: 15,
   },
   errorBox: {
-    backgroundColor: COLORS.dangerDim,
-    borderWidth: 1,
-    borderColor: COLORS.danger,
     borderRadius: 12,
     padding: SPACING.lg,
     marginBottom: SPACING.lg,
   },
   errorText: {
-    color: COLORS.danger,
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '500',
   },
-  infoRow: {
+  groupedSection: {
+    borderRadius: RADIUS.xl,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  groupedRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: SPACING.lg,
+    minHeight: 44,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   label: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
+    fontSize: 15,
   },
   value: {
-    fontSize: 14,
-    color: COLORS.textPrimary,
+    fontSize: 15,
     fontWeight: '500',
   },
   editActions: {

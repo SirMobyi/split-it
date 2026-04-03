@@ -8,10 +8,12 @@ import { useGroupBalances } from '../../../src/hooks/use-balances';
 import { useGroupPayments, useCreatePayment, useConfirmPayment, useEditPayment } from '../../../src/hooks/use-payments';
 import { useAuthStore } from '../../../src/stores/auth-store';
 import { launchUPIPayment, isUPIAvailable } from '../../../src/lib/upi';
-import { COLORS, SPACING, formatCurrency } from '../../../src/constants/theme';
+import { SPACING, formatCurrency } from '../../../src/constants/theme';
+import { useColors } from '../../../src/hooks/use-colors';
 import { format } from 'date-fns';
 
 export default function SettleScreen() {
+  const colors = useColors();
   const { id: groupId } = useLocalSearchParams<{ id: string }>();
   const userId = useAuthStore((s) => s.session?.user.id);
   const profile = useAuthStore((s) => s.profile);
@@ -120,29 +122,29 @@ export default function SettleScreen() {
     <Screen scrollable>
       <View style={styles.header}>
         <Button title="Close" onPress={() => router.push(`/group/${groupId}`)} variant="ghost" size="sm" />
-        <Text style={styles.headerTitle}>Settle Up</Text>
+        <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Settle Up</Text>
         <View style={{ width: 60 }} />
       </View>
 
       {error ? (
-        <View style={styles.errorBox}>
-          <Text style={styles.errorText}>{error}</Text>
+        <View style={[styles.errorBox, { backgroundColor: colors.dangerDim }]}>
+          <Text style={[styles.errorText, { color: colors.danger }]}>{error}</Text>
         </View>
       ) : null}
 
       {/* Tabs */}
-      <View style={styles.tabs}>
+      <View style={[styles.tabs, { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.borderLight }]}>
         <TouchableOpacity
-          style={[styles.tab, tab === 'settle' && styles.tabActive]}
+          style={[styles.tab, tab === 'settle' && { borderBottomWidth: 2, borderBottomColor: colors.accent }]}
           onPress={() => setTab('settle')}
         >
-          <Text style={[styles.tabText, tab === 'settle' && styles.tabTextActive]}>Settle</Text>
+          <Text style={[styles.tabText, { color: colors.textTertiary }, tab === 'settle' && { color: colors.accent }]}>Settle</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.tab, tab === 'history' && styles.tabActive]}
+          style={[styles.tab, tab === 'history' && { borderBottomWidth: 2, borderBottomColor: colors.accent }]}
           onPress={() => setTab('history')}
         >
-          <Text style={[styles.tabText, tab === 'history' && styles.tabTextActive]}>History</Text>
+          <Text style={[styles.tabText, { color: colors.textTertiary }, tab === 'history' && { color: colors.accent }]}>History</Text>
         </TouchableOpacity>
       </View>
 
@@ -150,7 +152,7 @@ export default function SettleScreen() {
         <View style={styles.content}>
           {myDebts.length > 0 && (
             <View style={{ gap: SPACING.sm }}>
-              <Text style={styles.sectionTitle}>You Owe</Text>
+              <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>You Owe</Text>
               {myDebts.map((debt, i) => (
                 <Card
                   key={i}
@@ -158,13 +160,13 @@ export default function SettleScreen() {
                     setSelectedPayee(debt.to);
                     setAmount(debt.amount.toFixed(2));
                   }}
-                  style={selectedPayee === debt.to ? { borderColor: COLORS.accent } : undefined}
+                  style={selectedPayee === debt.to ? { borderColor: colors.accent } : undefined}
                 >
                   <View style={styles.debtRow}>
                     <Avatar name={debt.toName} size={36} />
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.debtName}>{debt.toName}</Text>
-                      <Text style={{ color: COLORS.danger, fontSize: 13 }}>
+                      <Text style={[styles.debtName, { color: colors.textPrimary }]}>{debt.toName}</Text>
+                      <Text style={{ color: colors.danger, fontSize: 13 }}>
                         You owe {formatCurrency(debt.amount)}
                       </Text>
                     </View>
@@ -180,14 +182,14 @@ export default function SettleScreen() {
 
           {myCredits.length > 0 && (
             <View style={{ gap: SPACING.sm, marginTop: SPACING.xl }}>
-              <Text style={styles.sectionTitle}>Owed to You</Text>
+              <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Owed to You</Text>
               {myCredits.map((debt, i) => (
                 <Card key={i}>
                   <View style={styles.debtRow}>
                     <Avatar name={debt.fromName} size={36} />
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.debtName}>{debt.fromName}</Text>
-                      <Text style={{ color: COLORS.accent, fontSize: 13 }}>
+                      <Text style={[styles.debtName, { color: colors.textPrimary }]}>{debt.fromName}</Text>
+                      <Text style={{ color: colors.accent, fontSize: 13 }}>
                         Owes you {formatCurrency(debt.amount)}
                       </Text>
                     </View>
@@ -200,15 +202,15 @@ export default function SettleScreen() {
           {myDebts.length === 0 && myCredits.length === 0 && (
             <Card style={{ alignItems: 'center', paddingVertical: 32 }}>
               <View style={{ marginBottom: 8 }}>
-                <CircleCheck size={32} color={COLORS.accent} />
+                <CircleCheck size={32} color={colors.accent} />
               </View>
-              <Text style={styles.settledText}>All settled up!</Text>
+              <Text style={[styles.settledText, { color: colors.accent }]}>All settled up!</Text>
             </Card>
           )}
 
           {selectedPayee && (
             <Card style={{ gap: SPACING.md, marginTop: SPACING.lg }}>
-              <Text style={styles.formTitle}>Settlement Amount</Text>
+              <Text style={[styles.formTitle, { color: colors.textSecondary }]}>Settlement Amount</Text>
               <Input
                 prefix="₹"
                 placeholder="0.00"
@@ -216,7 +218,7 @@ export default function SettleScreen() {
                 onChangeText={setAmount}
                 keyboardType="decimal-pad"
               />
-              <Text style={styles.hint}>
+              <Text style={[styles.hint, { color: colors.textTertiary }]}>
                 You can pay partially — enter any amount up to the full balance.
               </Text>
               <Button
@@ -232,7 +234,7 @@ export default function SettleScreen() {
         <View style={styles.content}>
           {(!payments || payments.length === 0) ? (
             <Card style={{ alignItems: 'center', paddingVertical: 24 }}>
-              <Text style={{ color: COLORS.textSecondary }}>No payment history</Text>
+              <Text style={{ color: colors.textSecondary }}>No payment history</Text>
             </Card>
           ) : (
             <View style={{ gap: SPACING.sm }}>
@@ -245,7 +247,7 @@ export default function SettleScreen() {
                   <Card key={p.id}>
                     <View style={{ gap: 8 }}>
                       <View style={styles.paymentHeader}>
-                        <Text style={styles.paymentTitle}>
+                        <Text style={[styles.paymentTitle, { color: colors.textPrimary }]}>
                           {p.payer?.full_name} → {p.payee?.full_name}
                         </Text>
                         <Badge
@@ -253,11 +255,11 @@ export default function SettleScreen() {
                           variant={p.status === 'SETTLED' ? 'success' : p.status === 'PAID' ? 'warning' : 'neutral'}
                         />
                       </View>
-                      <Text style={styles.paymentAmount}>{formatCurrency(p.amount)}</Text>
+                      <Text style={[styles.paymentAmount, { color: colors.textPrimary }]}>{formatCurrency(p.amount)}</Text>
                       {p.note && (
-                        <Text style={styles.paymentNote}>{p.note}</Text>
+                        <Text style={[styles.paymentNote, { color: colors.textTertiary }]}>{p.note}</Text>
                       )}
-                      <Text style={styles.paymentDate}>
+                      <Text style={[styles.paymentDate, { color: colors.textTertiary }]}>
                         {format(new Date(p.created_at), 'dd MMM yyyy, hh:mm a')}
                       </Text>
 
@@ -316,8 +318,8 @@ export default function SettleScreen() {
       >
         <View style={{ gap: SPACING.lg, paddingTop: 8 }}>
           {editError ? (
-            <View style={styles.errorBox}>
-              <Text style={styles.errorText}>{editError}</Text>
+            <View style={[styles.errorBox, { backgroundColor: colors.dangerDim }]}>
+              <Text style={[styles.errorText, { color: colors.danger }]}>{editError}</Text>
             </View>
           ) : null}
           <Input
@@ -340,7 +342,7 @@ export default function SettleScreen() {
             loading={editPayment.isPending}
             fullWidth
           />
-          <Text style={{ fontSize: 11, color: COLORS.textTertiary, textAlign: 'center' }}>
+          <Text style={{ fontSize: 12, color: colors.textTertiary, textAlign: 'center' }}>
             Only pending payments can be edited. Changes are logged in the audit trail.
           </Text>
         </View>
@@ -357,45 +359,30 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.md,
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '700',
-    color: COLORS.textPrimary,
   },
   errorBox: {
-    backgroundColor: COLORS.dangerDim,
-    borderWidth: 1,
-    borderColor: COLORS.danger,
     borderRadius: 12,
     padding: SPACING.lg,
     marginBottom: SPACING.sm,
   },
   errorText: {
-    color: COLORS.danger,
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '500',
   },
   tabs: {
     flexDirection: 'row',
     marginBottom: SPACING.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
   },
   tab: {
     flex: 1,
     paddingVertical: 12,
     alignItems: 'center',
   },
-  tabActive: {
-    borderBottomWidth: 2,
-    borderBottomColor: COLORS.accent,
-  },
   tabText: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
-    color: COLORS.textTertiary,
-  },
-  tabTextActive: {
-    color: COLORS.accent,
   },
   content: {
     paddingBottom: 40,
@@ -403,7 +390,6 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: COLORS.textPrimary,
     marginBottom: 4,
   },
   debtRow: {
@@ -414,21 +400,17 @@ const styles = StyleSheet.create({
   debtName: {
     fontSize: 15,
     fontWeight: '600',
-    color: COLORS.textPrimary,
   },
   settledText: {
     fontSize: 18,
     fontWeight: '700',
-    color: COLORS.accent,
   },
   formTitle: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
-    color: COLORS.textSecondary,
   },
   hint: {
-    fontSize: 12,
-    color: COLORS.textTertiary,
+    fontSize: 13,
   },
   paymentHeader: {
     flexDirection: 'row',
@@ -436,22 +418,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   paymentTitle: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
-    color: COLORS.textPrimary,
   },
   paymentAmount: {
     fontSize: 18,
     fontWeight: '700',
-    color: COLORS.textPrimary,
   },
   paymentNote: {
     fontSize: 13,
-    color: COLORS.textTertiary,
     fontStyle: 'italic',
   },
   paymentDate: {
-    fontSize: 12,
-    color: COLORS.textTertiary,
+    fontSize: 13,
   },
 });

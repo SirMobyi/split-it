@@ -4,11 +4,13 @@ import { router } from 'expo-router';
 import * as Linking from 'expo-linking';
 import { Screen, Button, Input } from '../../src/components/ui';
 import { supabase } from '../../src/lib/supabase';
-import { COLORS, SPACING } from '../../src/constants/theme';
+import { useColors } from '../../src/hooks/use-colors';
+import { SPACING } from '../../src/constants/theme';
 
 const authRedirectUrl = Linking.createURL('auth/callback');
 
 export default function LoginScreen() {
+  const colors = useColors();
   const [mode, setMode] = useState<'phone' | 'email'>('email');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
@@ -63,20 +65,22 @@ export default function LoginScreen() {
   return (
     <Screen scrollable>
       <View style={styles.hero}>
-        <Text style={styles.logo}>Split-It</Text>
-        <Text style={styles.tagline}>Split expenses effortlessly.{'\n'}Built for India.</Text>
+        <Text style={[styles.logo, { color: colors.textPrimary }]}>Split It</Text>
+        <Text style={[styles.tagline, { color: colors.textSecondary }]}>
+          Split expenses effortlessly.{'\n'}Built for India.
+        </Text>
       </View>
 
       <View style={styles.form}>
         {error ? (
-          <View style={styles.errorBox}>
-            <Text style={styles.errorText}>{error}</Text>
+          <View style={[styles.messageBox, { backgroundColor: colors.dangerDim }]}>
+            <Text style={[styles.messageText, { color: colors.danger }]}>{error}</Text>
           </View>
         ) : null}
 
         {message ? (
-          <View style={styles.successBox}>
-            <Text style={styles.successText}>{message}</Text>
+          <View style={[styles.messageBox, { backgroundColor: colors.accentDim }]}>
+            <Text style={[styles.messageText, { color: colors.accent }]}>{message}</Text>
           </View>
         ) : null}
 
@@ -118,9 +122,9 @@ export default function LoginScreen() {
         )}
 
         <View style={styles.divider}>
-          <View style={styles.line} />
-          <Text style={styles.orText}>or</Text>
-          <View style={styles.line} />
+          <View style={[styles.line, { backgroundColor: colors.borderLight }]} />
+          <Text style={[styles.orText, { color: colors.textTertiary }]}>or</Text>
+          <View style={[styles.line, { backgroundColor: colors.borderLight }]} />
         </View>
 
         <Button
@@ -143,25 +147,23 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   hero: {
-    paddingTop: 80,
+    paddingTop: 100,
     paddingBottom: 48,
     alignItems: 'center',
   },
   logo: {
-    fontSize: 42,
-    fontWeight: '800',
-    color: COLORS.accent,
-    letterSpacing: -1,
+    fontSize: 34,
+    fontWeight: '700',
+    letterSpacing: -0.5,
   },
   tagline: {
-    fontSize: 16,
-    color: COLORS.textSecondary,
+    fontSize: 17,
     textAlign: 'center',
     marginTop: 12,
-    lineHeight: 24,
+    lineHeight: 26,
   },
   form: {
-    gap: SPACING.lg,
+    gap: 20,
   },
   divider: {
     flexDirection: 'row',
@@ -171,35 +173,17 @@ const styles = StyleSheet.create({
   },
   line: {
     flex: 1,
-    height: 1,
-    backgroundColor: COLORS.border,
+    height: StyleSheet.hairlineWidth,
   },
   orText: {
-    color: COLORS.textTertiary,
-    fontSize: 13,
+    fontSize: 15,
   },
-  errorBox: {
-    backgroundColor: COLORS.dangerDim,
-    borderWidth: 1,
-    borderColor: COLORS.danger,
+  messageBox: {
     borderRadius: 12,
     padding: SPACING.lg,
   },
-  errorText: {
-    color: COLORS.danger,
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  successBox: {
-    backgroundColor: COLORS.accentDim,
-    borderWidth: 1,
-    borderColor: COLORS.accent,
-    borderRadius: 12,
-    padding: SPACING.lg,
-  },
-  successText: {
-    color: COLORS.accent,
-    fontSize: 14,
+  messageText: {
+    fontSize: 15,
     fontWeight: '500',
   },
 });

@@ -8,7 +8,6 @@ import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client
 import { supabase } from '../src/lib/supabase';
 import { restSelect } from '../src/lib/supabase-rest';
 import { useAuthStore } from '../src/stores/auth-store';
-import { COLORS } from '../src/constants/theme';
 import { useColors } from '../src/hooks/use-colors';
 import { registerForPushNotifications } from '../src/utils/push-notifications';
 import type { PersistedClient, Persister } from '@tanstack/react-query-persist-client';
@@ -181,7 +180,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 }
 
 function ThemedStatusBar() {
-  return <StatusBar style="light" />;
+  return <StatusBar style="dark" />;
 }
 
 export default function RootLayout() {

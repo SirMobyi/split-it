@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Animated, StyleSheet } from 'react-native';
-import { COLORS, SPACING, RADIUS } from '../../constants/theme';
+import { SPACING, RADIUS, SHADOWS } from '../../constants/theme';
+import { useColors } from '../../hooks/use-colors';
 
 interface SkeletonBoxProps {
   width?: number | string;
@@ -10,6 +11,7 @@ interface SkeletonBoxProps {
 }
 
 function SkeletonBox({ width = '100%', height = 16, borderRadius = RADIUS.md, style }: SkeletonBoxProps) {
+  const colors = useColors();
   const opacity = useRef(new Animated.Value(0.3)).current;
 
   useEffect(() => {
@@ -26,17 +28,17 @@ function SkeletonBox({ width = '100%', height = 16, borderRadius = RADIUS.md, st
   return (
     <Animated.View
       style={[
-        { width: width as any, height, borderRadius, backgroundColor: COLORS.surface3, opacity },
+        { width: width as any, height, borderRadius, backgroundColor: colors.surface3, opacity },
         style,
       ]}
     />
   );
 }
 
-/** Skeleton placeholder for a group card */
 export function SkeletonCard() {
+  const colors = useColors();
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, { backgroundColor: colors.surface2, ...SHADOWS.card }]}>
       <View style={{ flex: 1, gap: 10 }}>
         <SkeletonBox width="60%" height={18} />
         <View style={{ flexDirection: 'row', gap: 4 }}>
@@ -50,10 +52,10 @@ export function SkeletonCard() {
   );
 }
 
-/** Skeleton placeholder for the balance overview card */
 export function SkeletonBalanceCard() {
+  const colors = useColors();
   return (
-    <View style={[styles.card, { gap: SPACING.lg }]}>
+    <View style={[styles.card, { backgroundColor: colors.surface2, ...SHADOWS.cardElevated, gap: SPACING.lg }]}>
       <SkeletonBox width="45%" height={24} />
       <View style={{ flexDirection: 'row', gap: SPACING.lg }}>
         <View style={{ flex: 1, alignItems: 'center', gap: 6 }}>
@@ -69,29 +71,29 @@ export function SkeletonBalanceCard() {
   );
 }
 
-/** Skeleton for an expense row */
 export function SkeletonExpenseRow() {
+  const colors = useColors();
   return (
-    <View style={styles.expenseRow}>
+    <View style={[styles.expenseRow, { borderBottomColor: colors.borderLight }]}>
       <View style={{ flex: 1, gap: 8 }}>
         <SkeletonBox width="50%" height={16} />
         <SkeletonBox width="70%" height={12} />
-        <SkeletonBox width="30%" height={10} />
+        <SkeletonBox width="30%" height={12} />
       </View>
       <SkeletonBox width={70} height={14} />
     </View>
   );
 }
 
-/** Skeleton for an activity row */
 export function SkeletonActivityRow() {
+  const colors = useColors();
   return (
-    <View style={styles.activityRow}>
+    <View style={[styles.activityRow, { backgroundColor: colors.surface2, borderBottomColor: colors.borderLight }]}>
       <SkeletonBox width={20} height={20} borderRadius={10} />
       <View style={{ flex: 1, gap: 6 }}>
         <SkeletonBox width="70%" height={14} />
         <SkeletonBox width="50%" height={12} />
-        <SkeletonBox width="30%" height={10} />
+        <SkeletonBox width="30%" height={12} />
       </View>
       <SkeletonBox width={50} height={18} borderRadius={9} />
     </View>
@@ -104,27 +106,21 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.surface,
     borderRadius: RADIUS.xl,
-    padding: SPACING.lg,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    padding: SPACING.xl,
   },
   expenseRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: SPACING.md,
     paddingHorizontal: SPACING.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   activityRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 12,
     padding: SPACING.lg,
-    backgroundColor: COLORS.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
 });

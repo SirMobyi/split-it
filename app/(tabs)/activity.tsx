@@ -1,10 +1,10 @@
 import React from 'react';
 import { View, Text, FlatList, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { Sparkles, Pencil, Trash2, ClipboardList, Zap } from 'lucide-react-native';
-import { View as RNView } from 'react-native';
 import { Screen, Card, Badge, EmptyState, Button, BottomSheet, SkeletonActivityRow, Avatar } from '../../src/components/ui';
-import { useActivityFeed, useMarkNotificationRead, useMarkAllRead } from '../../src/hooks/use-notifications';
-import { COLORS, SPACING, formatCurrency } from '../../src/constants/theme';
+import { useActivityFeed } from '../../src/hooks/use-notifications';
+import { useColors } from '../../src/hooks/use-colors';
+import { SPACING, formatCurrency } from '../../src/constants/theme';
 import { formatDistanceToNow, format } from 'date-fns';
 
 const ACTION_ICONS: Record<string, React.ComponentType<{ size: number; color: string }>> = {
@@ -27,8 +27,6 @@ interface ActivityItem {
   group?: { name: string } | null;
 }
 
-
-/** Extract human-readable change details from audit log entry */
 function getAuditChanges(
   action: string,
   entityType: string,
@@ -54,15 +52,9 @@ function getAuditChanges(
   if (action === 'UPDATE' && prev && next) {
     const changes: string[] = [];
     const fields: Record<string, string> = {
-      title: 'Title',
-      amount: 'Amount',
-      description: 'Description',
-      transaction_date: 'Date',
-      split_type: 'Split type',
-      status: 'Status',
-      note: 'Note',
+      title: 'Title', amount: 'Amount', description: 'Description',
+      transaction_date: 'Date', split_type: 'Split type', status: 'Status', note: 'Note',
     };
-
     for (const [key, label] of Object.entries(fields)) {
       const oldVal = prev[key];
       const newVal = next[key];
@@ -81,30 +73,21 @@ function getAuditChanges(
 }
 
 function getActivityTitle(item: ActivityItem): string {
-  const entityMap: Record<string, string> = {
-    expense: 'expense',
-    payment: 'payment',
-    group: 'group',
-  };
+  const entityMap: Record<string, string> = { expense: 'expense', payment: 'payment', group: 'group' };
   const entity = entityMap[item.entity_type] || 'item';
   const who = item.modifier?.full_name ?? 'Someone';
 
   switch (item.action) {
-    case 'CREATE':
-      return `${who} added a ${entity.toLowerCase()}`;
-    case 'UPDATE':
-      return `${who} edited a ${entity.toLowerCase()}`;
-    case 'DELETE':
-      return `${who} deleted a ${entity.toLowerCase()}`;
-    default:
-      return `${who} modified a ${entity.toLowerCase()}`;
+    case 'CREATE': return `${who} added a ${entity}`;
+    case 'UPDATE': return `${who} edited a ${entity}`;
+    case 'DELETE': return `${who} deleted a ${entity}`;
+    default: return `${who} modified a ${entity}`;
   }
 }
 
 function getActivitySubtitle(item: ActivityItem): string {
   const state = item.new_state ?? item.previous_state;
   if (!state) return '';
-
   const parts: string[] = [];
   const nameOrTitle = state.title || state.name;
   if (nameOrTitle) parts.push(String(nameOrTitle));
@@ -113,22 +96,26 @@ function getActivitySubtitle(item: ActivityItem): string {
 }
 
 export default function ActivityScreen() {
+  const colors = useColors();
   const { data: activities, isLoading, isRefetching, refetch } = useActivityFeed();
   const [selectedItem, setSelectedItem] = React.useState<ActivityItem | null>(null);
 
   return (
     <Screen>
       <View style={styles.header}>
-        <Text style={styles.title}>Activity</Text>
+        <Text style={[styles.title, { color: colors.textPrimary }]}>Activity</Text>
       </View>
 
       <FlatList
         data={activities ?? []}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={{ gap: 1, paddingBottom: 32 }}
+        contentContainerStyle={{ paddingBottom: 32 }}
         showsVerticalScrollIndicator={false}
         refreshing={isRefetching}
         onRefresh={refetch}
+        ItemSeparatorComponent={() => (
+          <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: colors.borderLight, marginLeft: 56 }} />
+        )}
         ListEmptyComponent={
           isLoading ? (
             <>
@@ -147,46 +134,44 @@ export default function ActivityScreen() {
         }
         renderItem={({ item }) => {
           const changes = getAuditChanges(item.action, item.entity_type, item.previous_state, item.new_state);
-
           const badgeVariant = item.action === 'CREATE' ? 'success' : item.action === 'DELETE' ? 'danger' : 'warning';
-          const iconColor = item.action === 'CREATE' ? COLORS.accent : item.action === 'DELETE' ? COLORS.danger : COLORS.warning;
+          const iconColor = item.action === 'CREATE' ? colors.accent : item.action === 'DELETE' ? colors.danger : colors.warning;
 
           return (
             <TouchableOpacity
               activeOpacity={0.7}
               onPress={() => setSelectedItem(item)}
-              style={styles.notifRow}
+              style={[styles.notifRow, { backgroundColor: colors.surface2 }]}
             >
               <View style={{ flex: 1, gap: 6 }}>
                 <View style={styles.actorRow}>
                   <Avatar
                     name={item.modifier?.full_name ?? 'Someone'}
                     uri={(item as any).modifier?.avatar_url ?? undefined}
-                    size={32}
+                    size={36}
                   />
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.notifTitle}>{getActivityTitle(item)}</Text>
-                    <Text style={styles.notifBody}>{getActivitySubtitle(item)}</Text>
+                    <Text style={[styles.notifTitle, { color: colors.textPrimary }]}>{getActivityTitle(item)}</Text>
+                    <Text style={[styles.notifBody, { color: colors.textSecondary }]}>{getActivitySubtitle(item)}</Text>
                   </View>
                 </View>
 
                 {item.group?.name && item.entity_type !== 'group' && (
-                  <Text style={styles.groupLabel}>in {item.group.name}</Text>
+                  <Text style={[styles.groupLabel, { color: colors.accent }]}>in {item.group.name}</Text>
                 )}
 
-                {/* Show inline change summary for edits */}
                 {item.action === 'UPDATE' && changes.length > 0 && (
-                  <View style={styles.changePreview}>
+                  <View style={[styles.changePreview, { borderLeftColor: colors.warning }]}>
                     {changes.slice(0, 2).map((detail, i) => (
-                      <Text key={i} style={styles.changePreviewText}>{detail}</Text>
+                      <Text key={i} style={[styles.changePreviewText, { color: colors.warning }]}>{detail}</Text>
                     ))}
                     {changes.length > 2 && (
-                      <Text style={styles.moreChanges}>+{changes.length - 2} more changes</Text>
+                      <Text style={[styles.moreChanges, { color: colors.textTertiary }]}>+{changes.length - 2} more changes</Text>
                     )}
                   </View>
                 )}
 
-                <Text style={styles.time}>
+                <Text style={[styles.time, { color: colors.textTertiary }]}>
                   {format(new Date(item.created_at), 'dd MMM, hh:mm a')}
                   {' · '}
                   {formatDistanceToNow(new Date(item.created_at), { addSuffix: true })}
@@ -203,7 +188,6 @@ export default function ActivityScreen() {
         }}
       />
 
-      {/* Detail Bottom Sheet */}
       <BottomSheet
         visible={!!selectedItem}
         onClose={() => setSelectedItem(null)}
@@ -218,11 +202,11 @@ export default function ActivityScreen() {
                 size={36}
               />
               <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 16, fontWeight: '700', color: COLORS.textPrimary }}>
+                <Text style={{ fontSize: 17, fontWeight: '600', color: colors.textPrimary }}>
                   {getActivityTitle(selectedItem)}
                 </Text>
                 {selectedItem.group?.name && (
-                  <Text style={{ fontSize: 13, color: COLORS.textTertiary }}>
+                  <Text style={{ fontSize: 13, color: colors.textTertiary }}>
                     in {selectedItem.group.name}
                   </Text>
                 )}
@@ -231,26 +215,25 @@ export default function ActivityScreen() {
                 label={selectedItem.action}
                 variant={selectedItem.action === 'CREATE' ? 'success' : selectedItem.action === 'DELETE' ? 'danger' : 'warning'}
                 size="md"
-                icon={React.createElement(ACTION_ICONS[selectedItem.action] ?? ClipboardList, { size: 16, color: selectedItem.action === 'CREATE' ? COLORS.accent : selectedItem.action === 'DELETE' ? COLORS.danger : COLORS.warning })}
+                icon={React.createElement(ACTION_ICONS[selectedItem.action] ?? ClipboardList, { size: 16, color: selectedItem.action === 'CREATE' ? colors.accent : selectedItem.action === 'DELETE' ? colors.danger : colors.warning })}
               />
             </View>
 
-            <Text style={{ fontSize: 14, color: COLORS.textSecondary, lineHeight: 20 }}>
+            <Text style={{ fontSize: 15, color: colors.textSecondary, lineHeight: 22 }}>
               {getActivitySubtitle(selectedItem)}
             </Text>
 
-            <Text style={{ fontSize: 12, color: COLORS.textTertiary }}>
+            <Text style={{ fontSize: 13, color: colors.textTertiary }}>
               {format(new Date(selectedItem.created_at), "EEEE, dd MMMM yyyy 'at' hh:mm:ss a")}
             </Text>
 
-            {/* Change details */}
-            <View style={styles.detailSection}>
-              <Text style={styles.detailLabel}>Changes</Text>
+            <View style={[styles.detailSection, { backgroundColor: colors.surface }]}>
+              <Text style={[styles.detailLabel, { color: colors.textTertiary }]}>Changes</Text>
               {getAuditChanges(selectedItem.action, selectedItem.entity_type, selectedItem.previous_state, selectedItem.new_state).map((detail, i) => (
-                <Text key={i} style={styles.detailText}>{detail}</Text>
+                <Text key={i} style={[styles.detailText, { color: colors.textSecondary }]}>{detail}</Text>
               ))}
               {getAuditChanges(selectedItem.action, selectedItem.entity_type, selectedItem.previous_state, selectedItem.new_state).length === 0 && (
-                <Text style={styles.detailText}>
+                <Text style={[styles.detailText, { color: colors.textSecondary }]}>
                   {selectedItem.action === 'CREATE' ? 'New entry created' : 'No field changes recorded'}
                 </Text>
               )}
@@ -270,40 +253,32 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.lg,
   },
   title: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: COLORS.textPrimary,
+    fontSize: 34,
+    fontWeight: '700',
+    letterSpacing: 0.37,
   },
   notifRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 12,
-    padding: SPACING.lg,
-    backgroundColor: COLORS.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  iconWrap: {
-    marginTop: 2,
+    paddingVertical: 14,
+    paddingHorizontal: SPACING.lg,
   },
   actorRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 10,
   },
   notifTitle: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
-    color: COLORS.textPrimary,
   },
   notifBody: {
-    fontSize: 13,
-    color: COLORS.textSecondary,
-    lineHeight: 18,
+    fontSize: 15,
+    lineHeight: 20,
   },
   groupLabel: {
-    fontSize: 12,
-    color: COLORS.accent,
+    fontSize: 13,
     fontWeight: '500',
     marginTop: 1,
   },
@@ -311,26 +286,21 @@ const styles = StyleSheet.create({
     marginTop: 4,
     paddingLeft: 8,
     borderLeftWidth: 2,
-    borderLeftColor: COLORS.warning,
     gap: 1,
   },
   changePreviewText: {
-    fontSize: 12,
-    color: COLORS.warning,
+    fontSize: 13,
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
   moreChanges: {
-    fontSize: 11,
-    color: COLORS.textTertiary,
+    fontSize: 13,
     fontStyle: 'italic',
   },
   time: {
-    fontSize: 11,
-    color: COLORS.textTertiary,
+    fontSize: 13,
     marginTop: 4,
   },
   detailSection: {
-    backgroundColor: COLORS.surface2,
     borderRadius: 12,
     padding: SPACING.lg,
     gap: 6,
@@ -338,14 +308,12 @@ const styles = StyleSheet.create({
   detailLabel: {
     fontSize: 12,
     fontWeight: '700',
-    color: COLORS.textTertiary,
     textTransform: 'uppercase',
     letterSpacing: 1,
     marginBottom: 4,
   },
   detailText: {
-    fontSize: 13,
-    color: COLORS.textSecondary,
-    lineHeight: 18,
+    fontSize: 15,
+    lineHeight: 20,
   },
 });

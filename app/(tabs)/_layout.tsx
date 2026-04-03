@@ -1,8 +1,8 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { View, Text, StyleSheet } from 'react-native';
-import { LayoutDashboard, Users, Zap, CircleUser } from 'lucide-react-native';
-import { COLORS } from '../../src/constants/theme';
+import { LayoutDashboard, Zap, CircleUser } from 'lucide-react-native';
+import { useColors } from '../../src/hooks/use-colors';
 import { useUnreadCount } from '../../src/hooks/use-notifications';
 
 const TAB_ICONS: Record<string, React.ComponentType<{ size: number; color: string }>> = {
@@ -12,20 +12,21 @@ const TAB_ICONS: Record<string, React.ComponentType<{ size: number; color: strin
 };
 
 function TabIcon({ name, focused, badge }: { name: string; focused: boolean; badge?: number }) {
+  const colors = useColors();
   const IconComponent = TAB_ICONS[name];
-  const color = focused ? COLORS.accent : COLORS.textTertiary;
+  const color = focused ? colors.accent : colors.textTertiary;
 
   return (
-    <View style={{ alignItems: 'center', gap: 2, width: '100%', paddingHorizontal: 0 }}>
-      <View style={{ alignItems: 'center', justifyContent: 'center' }}>
-        {IconComponent ? <IconComponent size={22} color={color} /> : null}
+    <View style={styles.tabIconContainer}>
+      <View style={styles.iconWrapper}>
+        {IconComponent ? <IconComponent size={24} color={color} /> : null}
         {badge && badge > 0 ? (
-          <View style={styles.badge}>
+          <View style={[styles.badge, { backgroundColor: colors.accent }]}>
             <Text style={styles.badgeText}>{badge > 9 ? '9+' : badge}</Text>
           </View>
         ) : null}
       </View>
-      <Text style={{ fontSize: 10, color, fontWeight: '600' }}>
+      <Text style={[styles.tabLabel, { color }]}>
         {name}
       </Text>
     </View>
@@ -33,6 +34,7 @@ function TabIcon({ name, focused, badge }: { name: string; focused: boolean; bad
 }
 
 export default function TabsLayout() {
+  const colors = useColors();
   const { data: unreadCount } = useUnreadCount();
 
   return (
@@ -40,19 +42,13 @@ export default function TabsLayout() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: COLORS.surface,
-          borderTopColor: COLORS.border,
-          borderTopWidth: 1,
-          height: 80,
+          backgroundColor: colors.surface2,
+          borderTopColor: colors.borderLight,
+          borderTopWidth: StyleSheet.hairlineWidth,
+          height: 84,
           paddingTop: 8,
-          paddingHorizontal: 0,
-          justifyContent: 'space-around',
-          alignItems: 'center',
-          flexDirection: 'row',
         },
         tabBarItemStyle: {
-          width: '33.3333%',
-          marginHorizontal: 0,
           justifyContent: 'center',
           alignItems: 'center',
           paddingVertical: 6,
@@ -66,7 +62,6 @@ export default function TabsLayout() {
           tabBarIcon: ({ focused }) => <TabIcon name="Dashboard" focused={focused} />,
         }}
       />
-
       <Tabs.Screen
         name="activity"
         options={{
@@ -75,7 +70,6 @@ export default function TabsLayout() {
           ),
         }}
       />
-      {/* groups path is handled outside of the bottom tabs (app/groups) */}
       <Tabs.Screen
         name="profile"
         options={{
@@ -87,21 +81,32 @@ export default function TabsLayout() {
 }
 
 const styles = StyleSheet.create({
+  tabIconContainer: {
+    alignItems: 'center',
+    gap: 2,
+  },
+  iconWrapper: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   badge: {
     position: 'absolute',
     top: -4,
-    right: -8,
-    backgroundColor: COLORS.danger,
+    right: -10,
     borderRadius: 10,
-    minWidth: 16,
-    height: 16,
+    minWidth: 18,
+    height: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 4,
+    paddingHorizontal: 5,
   },
   badgeText: {
     color: '#FFFFFF',
-    fontSize: 9,
-    fontWeight: '800',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  tabLabel: {
+    fontSize: 10,
+    fontWeight: '500',
   },
 });

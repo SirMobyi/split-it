@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { COLORS, RADIUS } from '../../constants/theme';
+import { RADIUS } from '../../constants/theme';
+import { useColors } from '../../hooks/use-colors';
 
 type BadgeVariant = 'success' | 'danger' | 'warning' | 'info' | 'neutral';
 
@@ -11,22 +12,25 @@ interface BadgeProps {
   icon?: React.ReactNode;
 }
 
-const variantColors: Record<BadgeVariant, { bg: string; text: string }> = {
-  success: { bg: 'rgba(16, 185, 129, 0.15)', text: '#10B981' },
-  danger: { bg: 'rgba(248, 113, 113, 0.15)', text: COLORS.danger },
-  warning: { bg: 'rgba(251, 191, 36, 0.15)', text: COLORS.warning },
-  info: { bg: 'rgba(96, 165, 250, 0.15)', text: COLORS.info },
-  neutral: { bg: COLORS.surface2, text: COLORS.textSecondary },
-};
+function getVariantColors(colors: ReturnType<typeof useColors>): Record<BadgeVariant, { bg: string; text: string }> {
+  return {
+    success: { bg: '#E8F8EF', text: colors.success },
+    danger: { bg: '#FFF0EF', text: colors.danger },
+    warning: { bg: '#FFF8E1', text: colors.warning },
+    info: { bg: '#E3F2FD', text: colors.info },
+    neutral: { bg: colors.surface, text: colors.textSecondary },
+  };
+}
 
 export function Badge({ label, variant = 'neutral', size = 'sm', icon }: BadgeProps) {
-  const colors = variantColors[variant];
+  const themeColors = useColors();
+  const vc = getVariantColors(themeColors)[variant];
 
   return (
     <View
       style={[
         styles.base,
-        { backgroundColor: colors.bg },
+        { backgroundColor: vc.bg },
         size === 'sm' ? styles.sm : styles.md,
       ]}
     >
@@ -34,8 +38,7 @@ export function Badge({ label, variant = 'neutral', size = 'sm', icon }: BadgePr
         {icon ? (
           <View style={[styles.iconWrap, size === 'sm' ? styles.iconSm : styles.iconMd]}>{icon}</View>
         ) : null}
-
-        <Text style={[styles.text, { color: colors.text }, size === 'sm' && { fontSize: 11 }]}> 
+        <Text style={[styles.text, { color: vc.text }, size === 'sm' && { fontSize: 12 }]}>
           {label}
         </Text>
       </View>
@@ -45,21 +48,19 @@ export function Badge({ label, variant = 'neutral', size = 'sm', icon }: BadgePr
 
 const styles = StyleSheet.create({
   base: {
-    borderRadius: RADIUS.md, // Soft rounding
+    borderRadius: RADIUS.md,
     alignSelf: 'flex-start',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
   },
   sm: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
   },
   md: {
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     paddingVertical: 4,
   },
   text: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '600',
   },
   content: {

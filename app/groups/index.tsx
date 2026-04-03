@@ -4,9 +4,11 @@ import { router } from 'expo-router';
 import { Users } from 'lucide-react-native';
 import { Screen, Card, Button, Input, EmptyState, Avatar } from '../../src/components/ui';
 import { useGroups, useJoinGroup } from '../../src/hooks/use-groups';
-import { COLORS, SPACING } from '../../src/constants/theme';
+import { useColors } from '../../src/hooks/use-colors';
+import { SPACING } from '../../src/constants/theme';
 
 export default function GroupsScreen() {
+  const colors = useColors();
   const { data: groups, isLoading, isRefetching, refetch } = useGroups();
   const joinGroup = useJoinGroup();
   const [showJoin, setShowJoin] = useState(false);
@@ -27,7 +29,7 @@ export default function GroupsScreen() {
   return (
     <Screen>
       <View style={styles.header}>
-        <Text style={styles.title}>Groups</Text>
+        <Text style={[styles.title, { color: colors.textPrimary }]}>Groups</Text>
         <View style={styles.actions}>
           <Button
             title="Join"
@@ -45,7 +47,7 @@ export default function GroupsScreen() {
 
       {showJoin && (
         <Card style={{ marginBottom: SPACING.lg }}>
-          <Text style={styles.joinTitle}>Join with invite code</Text>
+          <Text style={[styles.joinTitle, { color: colors.textSecondary }]}>Join with invite code</Text>
           <View style={{ flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.sm }}>
             <View style={{ flex: 1 }}>
               <Input
@@ -86,22 +88,21 @@ export default function GroupsScreen() {
             <Card onPress={() => router.push(`/group/${item.id}`)}>
               <View style={styles.groupRow}>
                 <View style={{ flex: 1, gap: 6 }}>
-                  <Text style={styles.groupName}>{item.name}</Text>
+                  <Text style={[styles.groupName, { color: colors.textPrimary }]}>{item.name}</Text>
                   <View style={styles.avatarRow}>
                     {activeMembers.slice(0, 4).map((m) => (
                       <Avatar
                         key={m.user_id}
                         name={m.profile?.full_name ?? '?'}
                         uri={m.profile?.avatar_url}
-                        size={24}
+                        size={28}
                       />
                     ))}
                     {activeMembers.length > 4 && (
-                      <Text style={styles.moreText}>+{activeMembers.length - 4}</Text>
+                      <Text style={[styles.moreText, { color: colors.textTertiary }]}>+{activeMembers.length - 4}</Text>
                     )}
                   </View>
                 </View>
-                <Text style={styles.chevron}>›</Text>
               </View>
             </Card>
           );
@@ -119,27 +120,25 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.lg,
   },
   title: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: COLORS.textPrimary,
+    fontSize: 34,
+    fontWeight: '700',
+    letterSpacing: 0.37,
   },
   actions: {
     flexDirection: 'row',
     gap: SPACING.sm,
   },
   joinTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.textSecondary,
+    fontSize: 15,
+    fontWeight: '500',
   },
   groupRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   groupName: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: COLORS.textPrimary,
+    fontSize: 17,
+    fontWeight: '600',
   },
   avatarRow: {
     flexDirection: 'row',
@@ -147,12 +146,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   moreText: {
-    fontSize: 11,
-    color: COLORS.textTertiary,
+    fontSize: 13,
     marginLeft: 6,
-  },
-  chevron: {
-    fontSize: 24,
-    color: COLORS.textTertiary,
   },
 });

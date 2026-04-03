@@ -16,28 +16,27 @@ export const Input = forwardRef<TextInput, InputProps>(
     return (
       <View style={{ gap: 6 }}>
         {label && (
-          <Text style={{ color: colors.textSecondary, fontSize: 13, fontWeight: '500' }}>{label}</Text>
+          <Text style={{ color: colors.textSecondary, fontSize: 15, fontWeight: '500' }}>{label}</Text>
         )}
         <View style={[
           {
             flexDirection: 'row',
             alignItems: 'center' as const,
-            backgroundColor: colors.surface2,
-            borderWidth: 1,
-            borderColor: error ? colors.danger : colors.border,
-            borderRadius: RADIUS.lg, // 16px
+            backgroundColor: colors.surface,
+            borderRadius: RADIUS.md,
             paddingHorizontal: SPACING.lg,
             minHeight: 52,
           },
+          error && { borderWidth: 1, borderColor: colors.danger },
           multiline && { alignItems: 'flex-start' as const, paddingVertical: SPACING.lg },
         ]}>
-          {prefix && <Text style={{ color: colors.textSecondary, fontSize: 16, marginRight: 4 }}>{prefix}</Text>}
+          {prefix && <Text style={{ color: colors.textSecondary, fontSize: 17, marginRight: 4 }}>{prefix}</Text>}
           <TextInput
             ref={ref}
             placeholderTextColor={colors.textTertiary}
             multiline={multiline}
             style={[
-              { flex: 1, color: colors.textPrimary, fontSize: 16, paddingVertical: 0, minHeight: 24 },
+              { flex: 1, color: colors.textPrimary, fontSize: 17, paddingVertical: 0, minHeight: 24 },
               multiline && { textAlignVertical: 'top' as const, minHeight: 60 },
               Platform.OS === 'web' && { outlineStyle: 'none' } as any,
               style,
@@ -46,11 +45,10 @@ export const Input = forwardRef<TextInput, InputProps>(
           />
           {suffix}
         </View>
-        {error && <Text style={{ color: colors.danger, fontSize: 12 }}>{error}</Text>}
+        {error && <Text style={{ color: colors.danger, fontSize: 13 }}>{error}</Text>}
       </View>
     );
   }
 );
 
 Input.displayName = 'Input';
-

@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, TouchableOpacity, ViewStyle } from 'react-native';
-import { RADIUS, SPACING } from '../../constants/theme';
+import { RADIUS, SPACING, SHADOWS } from '../../constants/theme';
 import { useColors } from '../../hooks/use-colors';
 
 interface CardProps {
@@ -12,13 +12,14 @@ interface CardProps {
 
 export function Card({ children, onPress, style, variant = 'default' }: CardProps) {
   const colors = useColors();
+  const shadow = variant === 'elevated' ? SHADOWS.cardElevated : SHADOWS.card;
+
   const baseStyle: ViewStyle = {
-    backgroundColor: variant === 'elevated' ? colors.surface2 : colors.surface,
-    borderRadius: RADIUS.xl, // Increased to 24px for modern aesthetic
-    borderWidth: 1,
-    borderColor: variant === 'elevated' ? colors.borderLight : colors.border,
-    padding: SPACING.lg,
+    backgroundColor: colors.surface2,
+    borderRadius: RADIUS.xl,
+    padding: SPACING.xl,
     overflow: 'hidden',
+    ...shadow,
   };
 
   const containerStyle = [baseStyle, style];

@@ -5,9 +5,11 @@ import { Users } from 'lucide-react-native';
 import { Screen, Button, Card } from '../../src/components/ui';
 import { useJoinGroup } from '../../src/hooks/use-groups';
 import { supabase } from '../../src/lib/supabase';
-import { COLORS, SPACING } from '../../src/constants/theme';
+import { useColors } from '../../src/hooks/use-colors';
+import { SPACING } from '../../src/constants/theme';
 
 export default function JoinScreen() {
+  const colors = useColors();
   const { code } = useLocalSearchParams<{ code: string }>();
   const joinGroup = useJoinGroup();
   const [groupInfo, setGroupInfo] = useState<{ id: string; name: string } | null>(null);
@@ -42,8 +44,8 @@ export default function JoinScreen() {
     return (
       <Screen>
         <View style={styles.center}>
-          <ActivityIndicator color={COLORS.accent} size="large" />
-          <Text style={styles.loadingText}>Looking up group...</Text>
+          <ActivityIndicator color={colors.accent} size="large" />
+          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Looking up group...</Text>
         </View>
       </Screen>
     );
@@ -54,8 +56,8 @@ export default function JoinScreen() {
       <Screen>
         <View style={styles.center}>
           <Text style={{ fontSize: 48 }}>😕</Text>
-          <Text style={styles.errorTitle}>Invite not found</Text>
-          <Text style={styles.errorDesc}>{error}</Text>
+          <Text style={[styles.errorTitle, { color: colors.textPrimary }]}>Invite not found</Text>
+          <Text style={[styles.errorDesc, { color: colors.textSecondary }]}>{error}</Text>
           <Button title="Go Home" onPress={() => router.replace('/(tabs)')} />
         </View>
       </Screen>
@@ -66,9 +68,9 @@ export default function JoinScreen() {
     <Screen>
       <View style={styles.center}>
         <Card style={{ width: '100%', alignItems: 'center', gap: SPACING.lg }}>
-          <Users size={48} color={COLORS.accent} />
-          <Text style={styles.joinTitle}>Join Group</Text>
-          <Text style={styles.groupName}>{groupInfo?.name}</Text>
+          <Users size={48} color={colors.accent} />
+          <Text style={[styles.joinTitle, { color: colors.textSecondary }]}>Join Group</Text>
+          <Text style={[styles.groupName, { color: colors.textPrimary }]}>{groupInfo?.name}</Text>
           <View style={{ width: '100%', gap: SPACING.sm }}>
             <Button
               title="Join Group"
@@ -99,27 +101,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
   },
   loadingText: {
-    color: COLORS.textSecondary,
     fontSize: 15,
   },
   errorTitle: {
     fontSize: 22,
     fontWeight: '700',
-    color: COLORS.textPrimary,
   },
   errorDesc: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
+    fontSize: 15,
     textAlign: 'center',
   },
   joinTitle: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '500',
-    color: COLORS.textSecondary,
   },
   groupName: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: COLORS.textPrimary,
+    fontSize: 28,
+    fontWeight: '700',
   },
 });

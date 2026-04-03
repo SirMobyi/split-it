@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Modal, TouchableOpacity, Text, StyleSheet, Dimensions } from 'react-native';
-import { COLORS, RADIUS, SPACING } from '../../constants/theme';
+import { RADIUS, SPACING, SHADOWS } from '../../constants/theme';
+import { useColors } from '../../hooks/use-colors';
 
 interface BottomSheetProps {
   visible: boolean;
@@ -11,6 +12,8 @@ interface BottomSheetProps {
 }
 
 export function BottomSheet({ visible, onClose, title, showDone = true, children }: BottomSheetProps) {
+  const colors = useColors();
+
   return (
     <Modal
       visible={visible}
@@ -23,14 +26,20 @@ export function BottomSheet({ visible, onClose, title, showDone = true, children
         activeOpacity={1}
         onPress={onClose}
       >
-        <TouchableOpacity activeOpacity={1} style={styles.sheet}>
-          <View style={styles.handle} />
+        <TouchableOpacity
+          activeOpacity={1}
+          style={[styles.sheet, {
+            backgroundColor: colors.surface2,
+            ...SHADOWS.bottomSheet,
+          }]}
+        >
+          <View style={[styles.handle, { backgroundColor: colors.border }]} />
           {title && (
             <View style={styles.header}>
-              <Text style={styles.title}>{title}</Text>
+              <Text style={[styles.title, { color: colors.textPrimary }]}>{title}</Text>
               {showDone && (
                 <TouchableOpacity onPress={onClose}>
-                  <Text style={styles.close}>Done</Text>
+                  <Text style={[styles.close, { color: colors.accent }]}>Done</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -45,22 +54,17 @@ export function BottomSheet({ visible, onClose, title, showDone = true, children
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: 'rgba(0,0,0,0.3)',
     justifyContent: 'flex-end',
   },
   sheet: {
-    backgroundColor: COLORS.surface,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: Dimensions.get('window').height * 0.85,
-    borderWidth: 1,
-    borderBottomWidth: 0,
-    borderColor: COLORS.border,
   },
   handle: {
     width: 36,
     height: 4,
-    backgroundColor: COLORS.borderLight,
     borderRadius: 2,
     alignSelf: 'center',
     marginTop: 8,
@@ -74,13 +78,11 @@ const styles = StyleSheet.create({
     paddingBottom: SPACING.md,
   },
   title: {
-    color: COLORS.textPrimary,
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 17,
+    fontWeight: '600',
   },
   close: {
-    color: COLORS.accent,
-    fontSize: 15,
+    fontSize: 17,
     fontWeight: '600',
   },
   content: {
