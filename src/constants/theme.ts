@@ -25,6 +25,33 @@ export type ColorPalette = typeof DARK_COLORS;
 // Default export for backward compatibility — dark theme
 export const COLORS = DARK_COLORS;
 
+export const LIGHT_COLORS = {
+  background: '#FFFFFF',
+  surface: '#F7F6FB',
+  surface2: '#F2EEF9',
+  surface3: '#EFEAF6',
+  border: '#E9E5F6',
+  borderLight: '#E0DBF4',
+  textPrimary: '#0B1220',
+  textSecondary: '#475569',
+  textTertiary: '#6B7280',
+  accent: '#6D28D9',
+  accentLight: '#A78BFA',
+  accentDim: '#4C1D95',
+  danger: '#DC2626',
+  dangerLight: '#FCA5A5',
+  dangerDim: '#7F1D1D',
+  warning: '#D97706',
+  info: '#2563EB',
+  success: '#059669',
+  successLight: '#34D399',
+} as const;
+
+export const THEMES = {
+  dark: DARK_COLORS,
+  light: LIGHT_COLORS,
+} as const;
+
 export const SPACING = {
   xs: 4,
   sm: 8,

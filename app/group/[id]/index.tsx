@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, FlatList, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, SectionList, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Wallet, ArrowLeft, Info } from 'lucide-react-native';
 import { Screen, Card, Button, Avatar, Badge, BalanceText, EmptyState, BottomSheet, GroupIcon, UndoToast, SkeletonExpenseRow } from '../../../src/components/ui';
@@ -39,6 +39,33 @@ function getAuditChanges(prev: Record<string, unknown> | null, next: Record<stri
     }
   }
   return changes;
+}
+
+/** Group expenses into sections keyed by month-year (e.g., March 2026) */
+function groupExpensesByMonthYear(expenses: ExpenseWithSplits[]) {
+  const groups: Record<string, ExpenseWithSplits[]> = {};
+
+  for (const e of expenses) {
+    const d = new Date(e.created_at || e.transaction_date);
+    const month = d.toLocaleString(undefined, { month: 'long' });
+    const year = d.getFullYear();
+    const key = `${year}-${d.getMonth()}`;
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(e);
+  }
+
+  const sections = Object.entries(groups).map(([key, items]) => {
+    // sort items by created_at descending (newest first)
+    items.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    const first = items[0];
+    const d = new Date(first.created_at || first.transaction_date);
+    const title = `${d.toLocaleString(undefined, { month: 'long' })} ${d.getFullYear()}`;
+    return { title, data: items } as { title: string; data: ExpenseWithSplits[] };
+  });
+
+  // sort sections by the date of their first item (newest month first)
+  sections.sort((a, b) => new Date(b.data[0].created_at).getTime() - new Date(a.data[0].created_at).getTime());
+  return sections;
 }
 
 function AuditLogModal({
@@ -187,8 +214,9 @@ export default function GroupDetailScreen() {
         <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Expenses</Text>
       </View>
 
-      <FlatList
-        data={expenses ?? []}
+      {/* Group expenses into sections by month/year and show a date column on the left */}
+      <SectionList
+        sections={(expenses ?? []).length > 0 ? groupExpensesByMonthYear(expenses ?? []) : []}
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ gap: 1, paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
@@ -211,6 +239,11 @@ export default function GroupDetailScreen() {
             />
           )
         }
+        renderSectionHeader={({ section: s }) => (
+          <View style={styles.section} key={String(s.title)}>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>{s.title}</Text>
+          </View>
+        )}
         renderItem={({ item }) => {
           const isEdited = item.updated_at !== item.created_at;
           const myShare = item.splits?.find((s) => s.user_id === userId);
@@ -219,8 +252,6 @@ export default function GroupDetailScreen() {
           const payer = payerSplit?.user ?? item.creator;
           const payerName = payer?.full_name ?? 'Unknown';
 
-          // "You lent" is simply what you paid minus your own share.
-          // This is resilient even if other users' splits fail to load or are missing from DB.
           const lentAmount = isPayer
             ? item.amount - Number(myShare?.owed_amount ?? 0)
             : 0;
@@ -237,6 +268,11 @@ export default function GroupDetailScreen() {
                 setShowAudit(true);
               }}
             >
+              <View style={styles.dateColumn}>
+                <Text style={[styles.dateDay, { color: colors.accent }]}>{format(new Date(item.transaction_date), 'dd')}</Text>
+                <Text style={[styles.dateMonth, { color: colors.textTertiary }]}>{format(new Date(item.transaction_date), 'MMM')}</Text>
+              </View>
+
               <View style={{ flex: 1, gap: 3 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                   <Text style={[styles.expenseTitle, { color: colors.textPrimary }]}>{item.title}</Text>
@@ -256,9 +292,7 @@ export default function GroupDetailScreen() {
                     {(payer?.id === userId ? 'You' : payerName)} paid {formatCurrency(item.amount)}
                   </Text>
                 </View>
-                <Text style={[styles.expenseDate, { color: colors.textTertiary }]}>
-                  {format(new Date(item.transaction_date), 'dd MMM yyyy')}
-                  {' · '}
+                <Text style={[styles.expenseDate, { color: colors.textTertiary }]}> 
                   {format(new Date(item.created_at), 'hh:mm a')}
                 </Text>
               </View>
@@ -364,6 +398,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: SPACING.md,
     paddingHorizontal: SPACING.sm,
+  },
+  dateColumn: {
+    width: 72,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingRight: SPACING.sm,
+  },
+  dateDay: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  dateMonth: {
+    fontSize: 12,
+    fontWeight: '500',
+    textTransform: 'uppercase',
   },
   expenseTitle: {
     fontSize: 15,

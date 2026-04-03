@@ -26,7 +26,7 @@ function TabIcon({ name, focused, badge }: { name: string; focused: boolean; bad
           </View>
         ) : null}
       </View>
-      <Text style={[styles.tabLabel, { color }]}>
+      <Text style={[styles.tabLabel, { color }]} numberOfLines={1} ellipsizeMode="tail">
         {name}
       </Text>
     </View>
@@ -106,7 +106,9 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   tabLabel: {
-    fontSize: 10,
-    fontWeight: '500',
+    fontSize: 12,
+    fontWeight: '600',
+    maxWidth: 64,
+    textAlign: 'center',
   },
 });

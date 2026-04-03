@@ -4,7 +4,9 @@ import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { Camera, Loader, ChevronRight } from 'lucide-react-native';
 import { useQueryClient } from '@tanstack/react-query';
-import { Screen, Button, Input, Avatar, ImageCropper } from '../../src/components/ui';
+import { Screen, Button, Input, Avatar, ImageCropper, BottomSheet } from '../../src/components/ui';
+import { useThemeStore } from '../../src/stores/theme-store';
+import { Settings } from 'lucide-react-native';
 import { useAuthStore } from '../../src/stores/auth-store';
 import { useColors } from '../../src/hooks/use-colors';
 import { supabase } from '../../src/lib/supabase';
@@ -23,6 +25,9 @@ export default function ProfileScreen() {
   const [error, setError] = useState('');
   const [showCropper, setShowCropper] = useState(false);
   const [selectedImageUri, setSelectedImageUri] = useState<string>('');
+  const [showSettings, setShowSettings] = useState(false);
+  const theme = useThemeStore((s) => s.theme);
+  const setTheme = useThemeStore((s) => s.setTheme);
 
   const handleSave = async () => {
     setError('');
@@ -153,8 +158,11 @@ export default function ProfileScreen() {
 
   return (
     <Screen scrollable>
-      <View style={styles.header}>
+      <View style={[styles.header, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}> 
         <Text style={[styles.title, { color: colors.textPrimary }]}>Profile</Text>
+        <TouchableOpacity onPress={() => setShowSettings(true)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+          <Settings size={20} color={colors.textPrimary} />
+        </TouchableOpacity>
       </View>
 
       <View style={styles.avatarSection}>
@@ -223,6 +231,21 @@ export default function ProfileScreen() {
           setSelectedImageUri('');
         }}
       />
+
+      <BottomSheet visible={showSettings} onClose={() => setShowSettings(false)} title="Settings">
+        <View style={{ padding: 16, gap: 12 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <View>
+              <Text style={{ fontSize: 15, fontWeight: '600', color: colors.textPrimary }}>Theme</Text>
+              <Text style={{ fontSize: 13, color: colors.textTertiary }}>Choose Light or Dark</Text>
+            </View>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <Button title="Light" onPress={() => { setTheme('light'); setShowSettings(false); }} variant={theme === 'light' ? 'primary' : 'secondary'} />
+              <Button title="Dark" onPress={() => { setTheme('dark'); setShowSettings(false); }} variant={theme === 'dark' ? 'primary' : 'secondary'} />
+            </View>
+          </View>
+        </View>
+      </BottomSheet>
     </Screen>
   );
 }
