@@ -226,6 +226,7 @@ export default function GroupDetailScreen() {
       {/* Group expenses into sections by month/year and show a date column on the left */}
       <SectionList
         sections={(expenses ?? []).length > 0 ? groupExpensesByMonthYear(expenses ?? []) : []}
+        stickySectionHeadersEnabled={false}
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ gap: 1, paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
@@ -249,7 +250,7 @@ export default function GroupDetailScreen() {
           )
         }
         renderSectionHeader={({ section: s }) => (
-          <View style={styles.section} key={String(s.title)}>
+          <View style={[styles.section, { backgroundColor: colors.background }]} key={String(s.title)}>
             <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>{s.title}</Text>
           </View>
         )}
