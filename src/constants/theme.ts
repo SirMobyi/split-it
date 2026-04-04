@@ -20,10 +20,81 @@ export const DARK_COLORS = {
   successLight: '#34D399',
 } as const;
 
-export type ColorPalette = typeof DARK_COLORS;
+export const LIGHT_COLORS = {
+  background: '#F5F5F7',        // Apple-style light gray
+  surface: '#FFFFFF',            // Pure white cards (clear contrast)
+  surface2: '#FFFFFF',           // White for tab bar / sheets
+  surface3: '#F0ECF5',           // Subtle lavender for icon wraps
+  border: '#E5E5EA',             // iOS system gray separator
+  borderLight: '#D1D1D6',       // Slightly darker separator
+  textPrimary: '#1C1C1E',       // iOS label color
+  textSecondary: '#636366',      // iOS secondary label
+  textTertiary: '#AEAEB2',      // iOS tertiary label
+  accent: '#6D28D9',             // Deep violet (readable on white)
+  accentLight: '#A78BFA',        // Soft violet
+  accentDim: '#EDE9FE',          // Very light violet tint (button bg)
+  danger: '#DC2626',
+  dangerLight: '#FCA5A5',
+  dangerDim: '#FEF2F2',
+  warning: '#D97706',
+  info: '#2563EB',
+  success: '#059669',
+  successLight: '#34D399',
+} as const;
+
+export type ColorPalette = {
+  readonly background: string;
+  readonly surface: string;
+  readonly surface2: string;
+  readonly surface3: string;
+  readonly border: string;
+  readonly borderLight: string;
+  readonly textPrimary: string;
+  readonly textSecondary: string;
+  readonly textTertiary: string;
+  readonly accent: string;
+  readonly accentLight: string;
+  readonly accentDim: string;
+  readonly danger: string;
+  readonly dangerLight: string;
+  readonly dangerDim: string;
+  readonly warning: string;
+  readonly info: string;
+  readonly success: string;
+  readonly successLight: string;
+};
+
+export const THEMES = {
+  dark: DARK_COLORS,
+  light: LIGHT_COLORS,
+} as const;
 
 // Default export for backward compatibility — dark theme
 export const COLORS = DARK_COLORS;
+
+export const SHADOWS = {
+  card: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  cardElevated: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  bottomSheet: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+} as const;
 
 export const SPACING = {
   xs: 4,

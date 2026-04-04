@@ -1,7 +1,9 @@
-import { DARK_COLORS } from '../constants/theme';
+import { THEMES } from '../constants/theme';
 import type { ColorPalette } from '../constants/theme';
+import { useThemeStore } from '../stores/theme-store';
 
-/** Returns the dark color palette. */
+/** Returns the currently selected color palette (light by default). */
 export function useColors(): ColorPalette {
-  return DARK_COLORS;
+  const theme = useThemeStore((s) => s.theme);
+  return THEMES[theme];
 }
