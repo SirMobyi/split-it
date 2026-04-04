@@ -28,8 +28,17 @@
         {
           "action": "VIEW",
           "autoVerify": true,
-          "data": [{ "scheme": "splitit", "host": "join", "pathPrefix": "/" }],
-          "category": ["DEFAULT", "BROWSABLE"]
+          "data": [
+            {
+              "scheme": "splitit",
+              "host": "join",
+              "pathPrefix": "/"
+            }
+          ],
+          "category": [
+            "DEFAULT",
+            "BROWSABLE"
+          ]
         }
       ]
     },
@@ -46,7 +55,8 @@
           "icon": "./assets/icon.png",
           "color": "#10B981"
         }
-      ]
+      ],
+      "expo-web-browser"
     ]
   }
 }
