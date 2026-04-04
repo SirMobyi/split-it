@@ -156,7 +156,9 @@ export default function GroupDetailScreen() {
 
       {/* Balance Card */}
       <Card style={styles.balanceCard}>
-        <Text style={[styles.balanceLabel, { color: colors.textSecondary }]}>Your Balance</Text>
+        <Text style={[styles.balanceLabel, { color: colors.textSecondary }]}>
+          {(myBalance?.netBalance ?? 0) > 0.01 ? 'You are owed' : (myBalance?.netBalance ?? 0) < -0.01 ? 'You owe' : 'All settled up'}
+        </Text>
         <BalanceText amount={myBalance?.netBalance ?? 0} size="xl" />
         {balanceData && balanceData.simplifiedDebts.length > 0 && (
           <View style={[styles.debtsPreview, { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.borderLight }]}>
