@@ -1,13 +1,16 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Platform } from 'react-native';
 import { router } from 'expo-router';
 import * as Linking from 'expo-linking';
+import * as WebBrowser from 'expo-web-browser';
 import { Screen, Button, Input } from '../../src/components/ui';
 import { supabase } from '../../src/lib/supabase';
 import { useColors } from '../../src/hooks/use-colors';
 import { SPACING } from '../../src/constants/theme';
 
 const authRedirectUrl = Linking.createURL('auth/callback');
+
+WebBrowser.maybeCompleteAuthSession();
 
 export default function LoginScreen() {
   const colors = useColors();
@@ -38,11 +41,40 @@ export default function LoginScreen() {
 
   const handleGoogleLogin = async () => {
     setError('');
-    const { error: authErr } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: authRedirectUrl },
-    });
-    if (authErr) setError(authErr.message);
+    setLoading(true);
+    try {
+      const { data, error: authErr } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: authRedirectUrl, skipBrowserRedirect: true },
+      });
+      if (authErr) { setError(authErr.message); return; }
+      if (!data?.url) { setError('Failed to get Google login URL'); return; }
+
+      if (Platform.OS === 'web') {
+        window.location.href = data.url;
+        return;
+      }
+
+      const result = await WebBrowser.openAuthSessionAsync(data.url, authRedirectUrl);
+      if (result.type !== 'success' || !result.url) return;
+
+      const fragment = result.url.substring(result.url.indexOf('#') + 1);
+      const params = new URLSearchParams(fragment);
+      const accessToken = params.get('access_token');
+      const refreshToken = params.get('refresh_token');
+
+      if (accessToken && refreshToken) {
+        const { error: sessionErr } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
+        if (sessionErr) setError(sessionErr.message);
+      }
+    } catch (err: any) {
+      setError(err?.message ?? 'Google login failed');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleEmailLogin = async () => {
