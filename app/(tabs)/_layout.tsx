@@ -1,13 +1,13 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { View, Text, StyleSheet } from 'react-native';
-import { House, Clock, CircleUser } from 'lucide-react-native';
+import { LayoutDashboard, Zap, CircleUser } from 'lucide-react-native';
 import { useColors } from '../../src/hooks/use-colors';
 import { useUnreadCount } from '../../src/hooks/use-notifications';
 
 const TAB_ICONS: Record<string, React.ComponentType<{ size: number; color: string }>> = {
-  Home: House,
-  Activity: Clock,
+  Dashboard: LayoutDashboard,
+  Activity: Zap,
   Profile: CircleUser,
 };
 
@@ -26,7 +26,7 @@ function TabIcon({ name, focused, badge }: { name: string; focused: boolean; bad
           </View>
         ) : null}
       </View>
-      <Text style={[styles.tabLabel, { color }]} numberOfLines={1}>
+      <Text style={[styles.tabLabel, { color }]} numberOfLines={1} ellipsizeMode="tail">
         {name}
       </Text>
     </View>
@@ -59,7 +59,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          tabBarIcon: ({ focused }) => <TabIcon name="Home" focused={focused} />,
+          tabBarIcon: ({ focused }) => <TabIcon name="Dashboard" focused={focused} />,
         }}
       />
       <Tabs.Screen
@@ -106,7 +106,9 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   tabLabel: {
-    fontSize: 10,
-    fontWeight: '500',
+    fontSize: 12,
+    fontWeight: '600',
+    maxWidth: 64,
+    textAlign: 'center',
   },
 });
