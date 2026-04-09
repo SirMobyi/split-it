@@ -20,9 +20,13 @@ interface ButtonProps {
 
 function getVariantStyles(colors: ColorPalette): Record<ButtonVariant, { bg: string; text: string }> {
   return {
+    // Primary: filled accent with white text (high contrast)
     primary: { bg: colors.accent, text: '#FFFFFF' },
-    secondary: { bg: colors.accentDim, text: colors.accent },
-    danger: { bg: colors.dangerDim, text: colors.danger },
+    // Secondary: slightly lighter accent fill to keep consistent filled style
+    secondary: { bg: colors.accentLight, text: '#FFFFFF' },
+    // Danger: filled red background with white text
+    danger: { bg: colors.danger, text: '#FFFFFF' },
+    // Ghost: transparent background, accent text
     ghost: { bg: 'transparent', text: colors.accent },
   };
 }
@@ -52,7 +56,7 @@ export function Button({
     <TouchableOpacity
       onPress={onPress}
       disabled={isDisabled}
-      activeOpacity={0.7}
+      activeOpacity={0.8}
       style={[
         {
           height: s.height,
@@ -65,6 +69,7 @@ export function Button({
           gap: 8,
           opacity: isDisabled ? 0.5 : 1,
           ...(fullWidth ? { width: '100%' } : {}),
+          // make the button feel more tactile with a subtle shadow on platforms that support it
         } as ViewStyle,
       ]}
     >
@@ -73,7 +78,7 @@ export function Button({
       ) : (
         <>
           {icon}
-          <Text style={{ color: v.text, fontSize: s.fontSize, fontWeight: '600' }}>
+          <Text style={{ color: v.text, fontSize: s.fontSize, fontWeight: '700' }}>
             {title}
           </Text>
         </>

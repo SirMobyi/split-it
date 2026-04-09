@@ -10,6 +10,7 @@ import { supabase } from '../src/lib/supabase';
 import { restSelect } from '../src/lib/supabase-rest';
 import { useAuthStore } from '../src/stores/auth-store';
 import { useColors } from '../src/hooks/use-colors';
+import { useThemeStore } from '../src/stores/theme-store';
 import { registerForPushNotifications } from '../src/utils/push-notifications';
 import type { PersistedClient, Persister } from '@tanstack/react-query-persist-client';
 
@@ -200,6 +201,10 @@ function ThemedStatusBar() {
 }
 
 export default function RootLayout() {
+  // Ensure theme is loaded from persistent storage on startup
+  React.useEffect(() => {
+    useThemeStore.getState().loadTheme().catch(() => {});
+  }, []);
   return (
     <PersistQueryClientProvider client={queryClient} persistOptions={{ persister, maxAge: 1000 * 60 * 60 * 24 }}>
       <ThemedStatusBar />

@@ -1,21 +1,14 @@
 import React, { useMemo, useState } from 'react';
 import { View, Text, FlatList, StyleSheet, TouchableOpacity, Alert, Platform } from 'react-native';
 import { router } from 'expo-router';
-import { Users, Plus, CircleCheck } from 'lucide-react-native';
-import { Screen, Card, Avatar, BalanceText, EmptyState, GroupIcon, SkeletonBalanceCard, SkeletonCard, Button, Input, BottomSheet, Badge } from '../../src/components/ui';
-import { useJoinGroup } from '../../src/hooks/use-groups';
+import { Users, Trash2 } from 'lucide-react-native';
+import { Screen, Card, Avatar, BalanceText, EmptyState, GroupIcon, SkeletonBalanceCard, SkeletonCard, Button, Input, BottomSheet } from '../../src/components/ui';
+import { useJoinGroup, useDeleteGroup } from '../../src/hooks/use-groups';
 import { useAuthStore } from '../../src/stores/auth-store';
 import { useGroups } from '../../src/hooks/use-groups';
 import { useAllGroupBalances } from '../../src/hooks/use-balances';
 import { useColors } from '../../src/hooks/use-colors';
 import { SPACING, SHADOWS, formatCurrency } from '../../src/constants/theme';
-
-function getGreeting(): string {
-  const hour = new Date().getHours();
-  if (hour < 12) return 'Good morning';
-  if (hour < 17) return 'Good afternoon';
-  return 'Good evening';
-}
 
 function BalanceOverview() {
   const colors = useColors();
@@ -48,45 +41,28 @@ function BalanceOverview() {
     };
   }, [allBalances, userId]);
 
-  const netBalance = totalOwed - totalOwe;
-  const isPositive = netBalance > 0.01;
-  const isNegative = netBalance < -0.01;
-
-  const heroLabel = isPositive
-    ? 'You are owed'
-    : isNegative
-    ? 'You owe'
-    : 'All settled up';
-
   return (
     <Card variant="elevated" style={styles.overviewCard}>
-      <View style={{ alignItems: 'center', gap: 4 }}>
-        <Text style={[styles.heroLabel, { color: colors.textSecondary }]}>{heroLabel}</Text>
-        <BalanceText amount={netBalance} size="xl" />
+      <View style={styles.balanceRow}>
+        <View style={styles.balanceItem}>
+          <Text style={[styles.balanceLabel, { color: colors.textSecondary }]}>You are owed</Text>
+          <BalanceText amount={totalOwed} size="xl" showSign={false} />
+        </View>
+        <View style={styles.balanceItem}>
+          <Text style={[styles.balanceLabel, { color: colors.textSecondary }]}>You owe</Text>
+          <BalanceText amount={totalOwe} size="xl" showSign={false} />
+        </View>
       </View>
 
-      {(totalOwed > 0 || totalOwe > 0) && (
-        <View style={[styles.balanceRow, { marginTop: SPACING.md }]}>
-          <View style={styles.balanceItem}>
-            <Text style={[styles.balanceLabel, { color: colors.textTertiary }]}>Owed to you</Text>
-            <Text style={[styles.balanceSubValue, { color: colors.success }]}>
-              {formatCurrency(totalOwed)}
-            </Text>
-          </View>
-          <View style={[styles.balanceDivider, { backgroundColor: colors.border }]} />
-          <View style={styles.balanceItem}>
-            <Text style={[styles.balanceLabel, { color: colors.textTertiary }]}>You owe</Text>
-            <Text style={[styles.balanceSubValue, { color: totalOwe > 0 ? colors.danger : colors.textTertiary }]}>
-              {formatCurrency(totalOwe)}
-            </Text>
-          </View>
-        </View>
-      )}
+      <View style={[styles.netRow, { backgroundColor: colors.surface }]}>
+        <Text style={[styles.netLabel, { color: colors.textSecondary }]}>Net Balance</Text>
+        <BalanceText amount={totalOwed - totalOwe} size="xl" />
+      </View>
     </Card>
   );
 }
 
-function GroupCard({ group }: { group: any }) {
+function GroupCard({ group, onDelete }: { group: any; onDelete: (g: any) => void }) {
   const colors = useColors();
   const userId = useAuthStore((s) => s.session?.user.id);
   const allBalances = useAllGroupBalances([group.id]);
@@ -96,49 +72,54 @@ function GroupCard({ group }: { group: any }) {
   const groupIcon = group.icon_url ?? 'Users';
 
   const isSettled = !myBalance || Math.abs(myBalance.netBalance) <= 0.01;
+  const isCreator = group.created_by === userId;
+  const isGroupSettled = !!balanceData && Array.isArray(balanceData.simplifiedDebts) && balanceData.simplifiedDebts.length === 0;
 
   return (
     <Card>
-      <TouchableOpacity
-        onPress={() => router.push(`/group/${group.id}`)}
-        style={styles.groupRow}
-        activeOpacity={0.7}
-      >
-        <View style={{ flex: 1, gap: 10 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-            <View style={[styles.groupIconWrap, { backgroundColor: colors.surface3 }]}>
-              <GroupIcon name={groupIcon} size={22} color={colors.accent} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.groupName, { color: colors.textPrimary }]}>{group.name}</Text>
-              <View style={[styles.avatarRow, { marginTop: 6 }]}>
-                {activeMembers.slice(0, 4).map((m: any) => (
-                  <Avatar
-                    key={m.user_id}
-                    name={m.profile?.full_name ?? '?'}
-                    uri={m.profile?.avatar_url}
-                    size={24}
-                  />
-                ))}
-                {activeMembers.length > 4 && (
-                  <Text style={[styles.moreText, { color: colors.textTertiary }]}>+{activeMembers.length - 4}</Text>
-                )}
-              </View>
-            </View>
+      <View style={styles.groupRow}>
+        <TouchableOpacity
+          onPress={() => router.push(`/group/${group.id}`)}
+          style={{ flex: 1, gap: 8, opacity: isSettled ? 0.5 : 1 }}
+          activeOpacity={0.8}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <GroupIcon name={groupIcon} size={20} color={colors.textPrimary} />
+            <Text style={[styles.groupName, { color: colors.textPrimary }]}>{group.name}</Text>
           </View>
-        </View>
+          <View style={styles.avatarRow}>
+            {activeMembers.slice(0, 4).map((m: any) => (
+              <Avatar
+                key={m.user_id}
+                name={m.profile?.full_name ?? '?'}
+                uri={m.profile?.avatar_url}
+                size={28}
+              />
+            ))}
+            {activeMembers.length > 4 && (
+              <Text style={[styles.moreText, { color: colors.textTertiary }]}>+{activeMembers.length - 4}</Text>
+            )}
+          </View>
+        </TouchableOpacity>
 
-        <View style={{ alignItems: 'flex-end' }}>
-          {isSettled ? (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-              <CircleCheck size={14} color={colors.success} />
-              <Text style={{ fontSize: 13, fontWeight: '500', color: colors.success }}>Settled</Text>
-            </View>
-          ) : (
-            <BalanceText amount={myBalance!.netBalance} size="sm" />
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          {myBalance && Math.abs(myBalance.netBalance) > 0.01 && (
+            <BalanceText amount={myBalance.netBalance} size="sm" />
+          )}
+          {isCreator && isGroupSettled && (
+            <TouchableOpacity
+              onPress={(e) => {
+                e.stopPropagation();
+                onDelete(group);
+              }}
+              style={styles.deleteButton}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Trash2 size={20} color={colors.danger} />
+            </TouchableOpacity>
           )}
         </View>
-      </TouchableOpacity>
+      </View>
     </Card>
   );
 }
@@ -147,8 +128,12 @@ export default function DashboardScreen() {
   const colors = useColors();
   const { data: groups, isLoading, isRefetching, refetch } = useGroups();
   const joinGroup = useJoinGroup();
+  const deleteGroupHook = useDeleteGroup();
   const [showJoin, setShowJoin] = React.useState(false);
   const [inviteCode, setInviteCode] = React.useState('');
+  const [groupToDelete, setGroupToDelete] = React.useState<any>(null);
+  const [isDeleting, setIsDeleting] = React.useState(false);
+  const [errorMsg, setErrorMsg] = React.useState<string | null>(null);
 
   const handleJoin = async () => {
     if (!inviteCode.trim()) return;
@@ -162,6 +147,20 @@ export default function DashboardScreen() {
     }
   };
 
+  const handlePerformDelete = async () => {
+    if (!groupToDelete) return;
+    try {
+      setIsDeleting(true);
+      setErrorMsg(null);
+      await deleteGroupHook.mutateAsync(groupToDelete.id);
+      setGroupToDelete(null);
+    } catch (e: any) {
+      setErrorMsg(e.message || 'Failed to delete group. Please try again.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const profile = useAuthStore((s) => s.profile);
 
   if (!profile) return null;
@@ -170,7 +169,7 @@ export default function DashboardScreen() {
     <Screen scrollable refreshing={isRefetching} onRefresh={refetch}>
       {/* Large Title */}
       <Text style={[styles.largeTitle, { color: colors.textPrimary }]}>
-        {getGreeting()}, {profile?.full_name?.split(' ')[0] ?? 'there'}
+        Hey, {profile?.full_name?.split(' ')[0] ?? 'there'}
       </Text>
 
       {isLoading ? (
@@ -188,18 +187,10 @@ export default function DashboardScreen() {
           <View style={styles.sectionHeader}>
             <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Groups</Text>
             <View style={styles.actionButtonsRow}>
-              <TouchableOpacity
-                style={[styles.headerTextButton]}
-                onPress={() => setShowJoin((s) => !s)}
-              >
-                <Text style={[styles.headerTextButtonLabel, { color: colors.accent }]}>Join</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.addButton, { backgroundColor: colors.accent }]}
-                onPress={() => router.push('/group/create')}
-              >
-                <Plus size={20} color="#FFFFFF" strokeWidth={2.5} />
-              </TouchableOpacity>
+              <View style={{ flexDirection: 'row', gap: SPACING.sm }}>
+                <Button title="Create" onPress={() => router.push('/group/create')} size="sm" variant="secondary" />
+                <Button title="Join" onPress={() => setShowJoin((s) => !s)} size="sm" variant="primary" />
+              </View>
             </View>
           </View>
 
@@ -234,6 +225,7 @@ export default function DashboardScreen() {
                 <GroupCard
                   key={group.id}
                   group={group}
+                  onDelete={(g) => setGroupToDelete(g)}
                 />
               ))}
             </View>
@@ -241,45 +233,94 @@ export default function DashboardScreen() {
         </View>
       )}
 
+      <BottomSheet
+        visible={!!groupToDelete}
+        onClose={() => !isDeleting && setGroupToDelete(null)}
+        title="Delete Group"
+        showDone={false}
+      >
+        <View style={{ gap: SPACING.lg, paddingVertical: SPACING.lg }}>
+          <View style={{ gap: 4 }}>
+            <Text style={{ fontSize: 17, fontWeight: '600', color: colors.textPrimary }}>
+              Are you sure you want to delete "{groupToDelete?.name}"?
+            </Text>
+            <Text style={{ fontSize: 15, color: colors.textSecondary, lineHeight: 22 }}>
+              This action will deactivate the group for all members. This cannot be undone.
+            </Text>
+          </View>
+
+          {errorMsg && (
+            <View style={{ backgroundColor: colors.dangerDim, padding: 12, borderRadius: 8 }}>
+              <Text style={{ color: colors.danger, fontSize: 15, fontWeight: '600' }}>
+                {errorMsg}
+              </Text>
+            </View>
+          )}
+
+          <View style={{ flexDirection: 'row', gap: SPACING.md }}>
+            <View style={{ flex: 1 }}>
+              <Button
+                title="Cancel"
+                variant="secondary"
+                fullWidth
+                onPress={() => setGroupToDelete(null)}
+                disabled={isDeleting}
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Button
+                title={isDeleting ? "Deleting..." : "Delete Group"}
+                variant="danger"
+                fullWidth
+                onPress={handlePerformDelete}
+                loading={isDeleting}
+              />
+            </View>
+          </View>
+        </View>
+      </BottomSheet>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
   largeTitle: {
-    fontSize: 34,
-    fontWeight: '700',
+    fontSize: 38,
+    fontWeight: '800',
     letterSpacing: 0.37,
     marginTop: SPACING.lg,
     marginBottom: SPACING.lg,
   },
   overviewCard: {
-    paddingVertical: SPACING.xl,
-  },
-  heroLabel: {
-    fontSize: 15,
-    fontWeight: '500',
+    gap: SPACING.lg,
+    padding: SPACING.xl,
+    borderRadius: 20,
   },
   balanceRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: SPACING.lg,
   },
   balanceItem: {
     flex: 1,
     alignItems: 'center',
-    gap: 2,
+    gap: 6,
   },
   balanceLabel: {
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: '500',
   },
-  balanceSubValue: {
+  netRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderRadius: 16,
+    paddingVertical: SPACING.lg,
+    paddingHorizontal: SPACING.lg,
+  },
+  netLabel: {
     fontSize: 15,
     fontWeight: '600',
-  },
-  balanceDivider: {
-    width: 1,
-    height: 28,
   },
   section: {
     marginTop: SPACING.xxl,
@@ -297,38 +338,25 @@ const styles = StyleSheet.create({
   actionButtonsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING.md,
+    gap: SPACING.sm,
   },
-  headerTextButton: {
-    paddingVertical: 6,
-    paddingHorizontal: 4,
+  actionPill: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 999,
   },
-  headerTextButtonLabel: {
-    fontSize: 17,
+  actionPillText: {
+    fontSize: 15,
     fontWeight: '600',
-  },
-  addButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   groupRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  groupIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   groupName: {
-    fontSize: 17,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '700',
   },
   avatarRow: {
     flexDirection: 'row',
@@ -342,5 +370,9 @@ const styles = StyleSheet.create({
   joinTitle: {
     fontSize: 15,
     fontWeight: '500',
+  },
+  deleteButton: {
+    padding: 8,
+    borderRadius: 8,
   },
 });

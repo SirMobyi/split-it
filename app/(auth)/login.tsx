@@ -8,12 +8,11 @@ import { supabase } from '../../src/lib/supabase';
 import { useColors } from '../../src/hooks/use-colors';
 import { SPACING } from '../../src/constants/theme';
 
-// Dismiss any lingering auth browser sessions on native (no-op on web/iOS)
-if (Platform.OS !== 'web') {
-  WebBrowser.maybeCompleteAuthSession();
-}
+const authRedirectUrl = Platform.OS === 'web'
+  ? window.location.origin
+  : Linking.createURL('auth/callback');
 
-const authRedirectUrl = Linking.createURL('auth/callback');
+WebBrowser.maybeCompleteAuthSession();
 
 export default function LoginScreen() {
   const colors = useColors();
@@ -45,65 +44,36 @@ export default function LoginScreen() {
   const handleGoogleLogin = async () => {
     setError('');
     setLoading(true);
-
     try {
+      const { data, error: authErr } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: authRedirectUrl, skipBrowserRedirect: true },
+      });
+      if (authErr) { setError(authErr.message); return; }
+      if (!data?.url) { setError('Failed to get Google login URL'); return; }
+
       if (Platform.OS === 'web') {
-        // Web: standard redirect-based OAuth
-        const { error: authErr } = await supabase.auth.signInWithOAuth({
-          provider: 'google',
-          options: { redirectTo: authRedirectUrl },
-        });
-        if (authErr) setError(authErr.message);
-      } else {
-        // Native: get OAuth URL, open in-app browser, capture redirect
-        const { data, error: authErr } = await supabase.auth.signInWithOAuth({
-          provider: 'google',
-          options: {
-            redirectTo: authRedirectUrl,
-            skipBrowserRedirect: true,
-          },
-        });
-
-        if (authErr) {
-          setError(authErr.message);
-          return;
-        }
-
-        if (!data?.url) {
-          setError('Failed to get Google login URL');
-          return;
-        }
-
-        const result = await WebBrowser.openAuthSessionAsync(
-          data.url,
-          authRedirectUrl,
-          { showInRecents: true },
-        );
-
-        if (result.type === 'success' && result.url) {
-          const fragmentIndex = result.url.indexOf('#');
-          if (fragmentIndex !== -1) {
-            const params = new URLSearchParams(result.url.substring(fragmentIndex + 1));
-            const accessToken = params.get('access_token');
-            const refreshToken = params.get('refresh_token');
-
-            if (accessToken && refreshToken) {
-              const { error: sessionError } = await supabase.auth.setSession({
-                access_token: accessToken,
-                refresh_token: refreshToken,
-              });
-              if (sessionError) setError(sessionError.message);
-            } else {
-              setError('Login failed — please try again');
-            }
-          } else {
-            setError('Login failed — please try again');
-          }
-        }
-        // User cancelled/dismissed → do nothing (no error shown)
+        window.location.href = data.url;
+        return;
       }
-    } catch (e: any) {
-      setError(e.message || 'An unexpected error occurred');
+
+      const result = await WebBrowser.openAuthSessionAsync(data.url, authRedirectUrl);
+      if (result.type !== 'success' || !result.url) return;
+
+      const fragment = result.url.substring(result.url.indexOf('#') + 1);
+      const params = new URLSearchParams(fragment);
+      const accessToken = params.get('access_token');
+      const refreshToken = params.get('refresh_token');
+
+      if (accessToken && refreshToken) {
+        const { error: sessionErr } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
+        if (sessionErr) setError(sessionErr.message);
+      }
+    } catch (err: any) {
+      setError(err?.message ?? 'Google login failed');
     } finally {
       setLoading(false);
     }
@@ -196,7 +166,6 @@ export default function LoginScreen() {
           onPress={handleGoogleLogin}
           variant="secondary"
           fullWidth
-          loading={loading}
         />
 
         <Button

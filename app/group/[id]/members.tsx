@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Share, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, Share, TouchableOpacity } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import QRCode from 'react-native-qrcode-svg';
-import { Copy, Pencil, MoreHorizontal, UserPlus } from 'lucide-react-native';
 import { Screen, Button, Card, Avatar, Badge, Input, BottomSheet } from '../../../src/components/ui';
-import { useGroup, useLeaveGroup, useUpdateGroup, useDeleteGroup } from '../../../src/hooks/use-groups';
+import { useGroup, useLeaveGroup, useUpdateGroup } from '../../../src/hooks/use-groups';
 import { useGroupBalances } from '../../../src/hooks/use-balances';
 import { useAuthStore } from '../../../src/stores/auth-store';
 import { exportGroupPDF } from '../../../src/utils/pdf-export';
@@ -94,53 +93,12 @@ export default function MembersScreen() {
     }
   };
 
-  const [showMore, setShowMore] = useState(false);
-  const deleteGroupHook = useDeleteGroup();
-  const isGroupSettled = !!balanceData && Array.isArray(balanceData.simplifiedDebts) && balanceData.simplifiedDebts.length === 0;
-
-  const handleCopyCode = async () => {
-    await Share.share({ message: group.invite_code });
-  };
-
-  const handleDeleteGroup = async () => {
-    Alert.alert(
-      'Delete Group',
-      `Are you sure you want to delete "${group.name}"? This cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await deleteGroupHook.mutateAsync(groupId!);
-              router.replace('/(tabs)');
-            } catch (e: any) {
-              setError(e.message);
-            }
-          },
-        },
-      ]
-    );
-  };
-
-  const activeMembers = group.members?.filter((m) => m.status === 'ACTIVE') ?? [];
-
   return (
     <Screen scrollable>
-      {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.push(`/group/${groupId}`)}>
-          <Text style={[styles.headerCloseText, { color: colors.accent }]}>Close</Text>
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>{group.name}</Text>
-        {isCreator ? (
-          <TouchableOpacity onPress={openEditGroup} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-            <Pencil size={20} color={colors.accent} />
-          </TouchableOpacity>
-        ) : (
-          <View style={{ width: 20 }} />
-        )}
+        <Button title="Close" onPress={() => router.push(`/group/${groupId}`)} variant="ghost" size="sm" />
+        <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Members</Text>
+        <View style={{ width: 60 }} />
       </View>
 
       {error ? (
@@ -149,79 +107,76 @@ export default function MembersScreen() {
         </View>
       ) : null}
 
-      {/* Invite Section -- Share is primary, code is secondary */}
-      <Card style={{ gap: SPACING.lg, marginTop: SPACING.sm }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <UserPlus size={18} color={colors.accent} />
-          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Invite People</Text>
-        </View>
-
-        <Button title="Share Invite Link" onPress={handleShare} fullWidth />
-
-        <View style={styles.codeRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.codeLabel, { color: colors.textTertiary }]}>Invite code</Text>
-            <Text style={[styles.code, { color: colors.textPrimary }]}>{group.invite_code}</Text>
-          </View>
-          <TouchableOpacity onPress={handleCopyCode} style={styles.copyButton} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-            <Copy size={18} color={colors.accent} />
-          </TouchableOpacity>
-        </View>
-
-        {/* Inline QR -- always visible, small, tappable to enlarge */}
-        <TouchableOpacity onPress={() => setShowQR(!showQR)} style={styles.qrRow} activeOpacity={0.7}>
-          <View style={[styles.qrSmall, { backgroundColor: colors.background }]}>
-            <QRCode value={inviteLink} size={showQR ? 180 : 60} backgroundColor="transparent" color={colors.textPrimary} />
-          </View>
-          {!showQR && (
-            <Text style={{ fontSize: 13, color: colors.textTertiary, flex: 1 }}>Tap to enlarge QR code</Text>
-          )}
-        </TouchableOpacity>
+      {/* Group Info Card */}
+      <Card style={{ alignItems: 'center', gap: SPACING.md }}>
+        <GroupIcon name={currentIcon} size={40} color={colors.accent} />
+        <Text style={{ fontSize: 20, fontWeight: '700', color: colors.textPrimary }}>{group.name}</Text>
+        {isCreator && (
+          <Button title="Edit Group" onPress={openEditGroup} variant="secondary" size="sm" />
+        )}
       </Card>
 
-      {/* Member List -- flat, no card wrapper */}
+      {/* Invite Section */}
+      <Card style={{ gap: SPACING.md, marginTop: SPACING.lg }}>
+        <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Invite Friends</Text>
+        <View style={styles.codeRow}>
+          <Text style={[styles.codeLabel, { color: colors.textSecondary }]}>Invite Code</Text>
+          <Text style={[styles.code, { color: colors.accent }]}>{group.invite_code}</Text>
+        </View>
+
+        <View style={{ flexDirection: 'row', gap: SPACING.sm }}>
+          <Button title="Share Link" onPress={handleShare} size="sm" />
+          <Button title={showQR ? 'Hide QR' : 'Show QR'} onPress={() => setShowQR(!showQR)} variant="secondary" size="sm" />
+        </View>
+
+        {showQR && (
+          <View style={styles.qrContainer}>
+            <QRCode value={inviteLink} size={180} backgroundColor={colors.surface} color={colors.textPrimary} />
+            <Text style={[styles.qrHint, { color: colors.textTertiary }]}>Scan to join the group</Text>
+          </View>
+        )}
+      </Card>
+
+      {/* Member List */}
       <View style={{ marginTop: SPACING.xl }}>
-        <Text style={[styles.sectionTitle, { color: colors.textPrimary, marginBottom: SPACING.md }]}>
-          Members ({activeMembers.length})
+        <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
+          Members ({group.members?.filter((m) => m.status === 'ACTIVE').length})
         </Text>
 
-        {group.members?.map((member) => {
-          const balance = balanceData?.balances.find((b) => b.userId === member.user_id);
-          const isMe = member.user_id === userId;
-          const isMemberCreator = member.user_id === group.created_by;
+        <View style={{ gap: 1, marginTop: SPACING.md }}>
+          {group.members?.map((member) => {
+            const balance = balanceData?.balances.find((b) => b.userId === member.user_id);
+            const isMe = member.user_id === userId;
 
-          return (
-            <View key={member.id} style={[styles.memberRow, { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }]}>
-              <Avatar
-                name={member.profile?.full_name ?? '?'}
-                uri={member.profile?.avatar_url}
-                size={40}
-              />
-              <View style={{ flex: 1 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Text style={[styles.memberName, { color: colors.textPrimary }]}>
-                    {member.profile?.full_name ?? 'Unknown'}
-                  </Text>
-                  {isMe && isMemberCreator && <Badge label="You · Admin" variant="info" size="sm" />}
-                  {isMe && !isMemberCreator && <Badge label="You" variant="info" size="sm" />}
-                  {!isMe && isMemberCreator && <Badge label="Admin" variant="success" size="sm" />}
-                  {member.status === 'INACTIVE' && <Badge label="Left" variant="neutral" size="sm" />}
+            return (
+              <View key={member.id} style={[styles.memberRow, { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.borderLight }]}>
+                <Avatar
+                  name={member.profile?.full_name ?? '?'}
+                  uri={member.profile?.avatar_url}
+                  size={40}
+                />
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={[styles.memberName, { color: colors.textPrimary }]}>
+                      {member.profile?.full_name ?? 'Unknown'}
+                    </Text>
+                    {isMe && <Badge label="You" variant="info" size="sm" />}
+                    {member.user_id === group.created_by && <Badge label="Creator" variant="success" size="sm" />}
+                    {member.status === 'INACTIVE' && <Badge label="Inactive" variant="neutral" size="sm" />}
+                  </View>
+                  <Text style={[styles.memberUsername, { color: colors.textTertiary }]}>@{member.profile?.username}</Text>
                 </View>
-                <Text style={[styles.memberUsername, { color: colors.textTertiary }]}>@{member.profile?.username}</Text>
-              </View>
-              {balance && (
-                <View style={{ alignItems: 'flex-end' }}>
+                {balance && (
                   <Text
-                    style={[
-                      styles.memberBalance,
-                      {
-                        color: balance.netBalance > 0.01
-                          ? colors.success
-                          : balance.netBalance < -0.01
-                            ? colors.danger
-                            : colors.textTertiary,
-                      },
-                    ]}
+                    style={{
+                      fontSize: 15,
+                      fontWeight: '600',
+                      color: balance.netBalance > 0.01
+                        ? colors.accent
+                        : balance.netBalance < -0.01
+                          ? colors.danger
+                          : colors.textTertiary,
+                    }}
                   >
                     {balance.netBalance > 0.01
                       ? `+${formatCurrency(balance.netBalance)}`
@@ -229,32 +184,17 @@ export default function MembersScreen() {
                         ? `-${formatCurrency(Math.abs(balance.netBalance))}`
                         : 'Settled'}
                   </Text>
-                </View>
-              )}
-            </View>
-          );
-        })}
+                )}
+              </View>
+            );
+          })}
+        </View>
       </View>
 
-      {/* Overflow actions -- Export, Leave, Delete tucked away */}
-      <View style={{ marginTop: SPACING.xxl, gap: SPACING.sm, marginBottom: SPACING.xxl }}>
-        <TouchableOpacity
-          onPress={() => setShowMore(!showMore)}
-          style={[styles.moreButton, { borderColor: colors.border }]}
-        >
-          <MoreHorizontal size={18} color={colors.textSecondary} />
-          <Text style={{ fontSize: 15, fontWeight: '500', color: colors.textSecondary }}>More Options</Text>
-        </TouchableOpacity>
-
-        {showMore && (
-          <View style={{ gap: SPACING.sm }}>
-            <Button title="Export as PDF" onPress={handleExport} variant="ghost" fullWidth />
-            <Button title="Leave Group" onPress={handleLeave} variant="ghost" fullWidth />
-            {isCreator && isGroupSettled && (
-              <Button title="Delete Group" onPress={handleDeleteGroup} variant="danger" fullWidth />
-            )}
-          </View>
-        )}
+      {/* Actions */}
+      <View style={{ marginTop: SPACING.xxl, gap: SPACING.md }}>
+        <Button title="Export as PDF" onPress={handleExport} variant="secondary" fullWidth />
+        <Button title="Leave Group" onPress={handleLeave} variant="danger" fullWidth />
       </View>
 
       {/* Edit Group Bottom Sheet */}
@@ -315,10 +255,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: SPACING.md,
   },
-  headerCloseText: {
-    fontSize: 17,
-    fontWeight: '400',
-  },
   headerTitle: {
     fontSize: 17,
     fontWeight: '700',
@@ -333,39 +269,29 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   sectionTitle: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '700',
   },
   codeRow: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    gap: SPACING.md,
   },
   codeLabel: {
-    fontSize: 12,
-    fontWeight: '500',
-    textTransform: 'uppercase' as any,
-    letterSpacing: 0.5,
+    fontSize: 13,
   },
   code: {
-    fontSize: 15,
-    fontWeight: '600',
-    fontFamily: 'Courier',
-    letterSpacing: 1,
+    fontSize: 18,
+    fontWeight: '700',
+    letterSpacing: 2,
   },
-  copyButton: {
-    padding: SPACING.sm,
-  },
-  qrRow: {
-    flexDirection: 'row',
+  qrContainer: {
     alignItems: 'center',
-    gap: SPACING.md,
+    gap: 12,
+    paddingVertical: SPACING.lg,
   },
-  qrSmall: {
-    padding: SPACING.sm,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
+  qrHint: {
+    fontSize: 13,
   },
   memberRow: {
     flexDirection: 'row',
@@ -379,20 +305,6 @@ const styles = StyleSheet.create({
   },
   memberUsername: {
     fontSize: 13,
-    marginTop: 1,
-  },
-  memberBalance: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  moreButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: SPACING.md,
-    borderRadius: 12,
-    borderWidth: 1,
   },
   iconLabel: {
     fontSize: 13,
