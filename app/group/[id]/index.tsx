@@ -1,61 +1,66 @@
-import React, { useState } from 'react';
-import { View, Text, SectionList, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import React, { useState, useRef, useEffect } from 'react';
+import { View, Text, SectionList, StyleSheet, Pressable, Platform, Alert, Animated } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Wallet, ArrowLeft, Info } from 'lucide-react-native';
-import { Screen, Card, Button, Avatar, Badge, BalanceText, EmptyState, BottomSheet, GroupIcon, UndoToast, SkeletonExpenseRow } from '../../../src/components/ui';
+import { Wallet, ArrowLeft, Info, Pencil, Trash2 } from 'lucide-react-native';
+import { Swipeable } from 'react-native-gesture-handler';
+import { LinearGradient } from 'expo-linear-gradient';
+
+function FadeInItem({ index, children }: { index: number; children: React.ReactNode }) {
+  const opacity = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(20)).current;
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(opacity, { toValue: 1, duration: 350, delay: index * 60, useNativeDriver: true }),
+      Animated.timing(translateY, { toValue: 0, duration: 350, delay: index * 60, useNativeDriver: true }),
+    ]).start();
+  }, []);
+  return <Animated.View style={{ opacity, transform: [{ translateY }] }}>{children}</Animated.View>;
+}
+import {
+  Screen, Card, Button, Avatar, Badge, BalanceText, EmptyState, BottomSheet,
+  GroupIcon, UndoToast, SkeletonExpenseRow, AnimatedNumber,
+} from '../../../src/components/ui';
 import { useGroup } from '../../../src/hooks/use-groups';
-import { useGroupExpenses, useUpdateExpense, useDeleteExpense } from '../../../src/hooks/use-expenses';
+import { useGroupExpenses, useDeleteExpense } from '../../../src/hooks/use-expenses';
 import { useGroupBalances } from '../../../src/hooks/use-balances';
 import { useAuthStore } from '../../../src/stores/auth-store';
-import { SPACING, formatCurrency } from '../../../src/constants/theme';
-import { useColors } from '../../../src/hooks/use-colors';
+import { SPACING, TYPOGRAPHY, RADIUS, GRADIENTS, formatCurrency } from '../../../src/constants/theme';
+import { useColors, useShadows } from '../../../src/hooks/use-colors';
 import { formatDistanceToNow, format } from 'date-fns';
 import type { AuditLogEntry, ExpenseWithSplits } from '../../../src/types/database';
 import { supabase } from '../../../src/lib/supabase';
+import { impact } from '../../../src/utils/haptics';
 
-/** Computes a human-readable diff between previous and new audit states */
 function getAuditChanges(prev: Record<string, unknown> | null, next: Record<string, unknown> | null): string[] {
   if (!prev || !next) return [];
   const changes: string[] = [];
   const fields: Record<string, string> = {
-    title: 'Title',
-    amount: 'Amount',
-    description: 'Description',
-    transaction_date: 'Date',
-    split_type: 'Split type',
-    status: 'Status',
-    note: 'Note',
+    title: 'Title', amount: 'Amount', description: 'Description',
+    transaction_date: 'Date', split_type: 'Split type', status: 'Status', note: 'Note',
   };
-
   for (const [key, label] of Object.entries(fields)) {
     const oldVal = prev[key];
     const newVal = next[key];
     if (oldVal !== undefined && newVal !== undefined && oldVal !== newVal) {
       if (key === 'amount') {
-        changes.push(`${label}: ${formatCurrency(Number(oldVal))} -> ${formatCurrency(Number(newVal))}`);
+        changes.push(`${label}: ${formatCurrency(Number(oldVal))} → ${formatCurrency(Number(newVal))}`);
       } else {
-        changes.push(`${label}: "${oldVal ?? '(empty)'}" -> "${newVal ?? '(empty)'}"`);
+        changes.push(`${label}: "${oldVal ?? '(empty)'}" → "${newVal ?? '(empty)'}"`);
       }
     }
   }
   return changes;
 }
 
-/** Group expenses into sections keyed by month-year (e.g., March 2026) */
 function groupExpensesByMonthYear(expenses: ExpenseWithSplits[]) {
   const groups: Record<string, ExpenseWithSplits[]> = {};
-
   for (const e of expenses) {
-    // Use transaction_date for grouping (falls back to created_at)
     const d = new Date(e.transaction_date || e.created_at);
-    const year = d.getFullYear();
-    const key = `${year}-${d.getMonth()}`;
+    const key = `${d.getFullYear()}-${d.getMonth()}`;
     if (!groups[key]) groups[key] = [];
     groups[key].push(e);
   }
-
   const sections = Object.entries(groups).map(([key, items]) => {
-    // sort items by transaction_date (newest first), fallback to created_at
     items.sort((a, b) => {
       const da = new Date(a.transaction_date || a.created_at).getTime();
       const db = new Date(b.transaction_date || b.created_at).getTime();
@@ -66,35 +71,146 @@ function groupExpensesByMonthYear(expenses: ExpenseWithSplits[]) {
     const title = `${d.toLocaleString(undefined, { month: 'long' })} ${d.getFullYear()}`;
     return { title, data: items } as { title: string; data: ExpenseWithSplits[] };
   });
-
-  // sort sections by the date of their first item (newest month first)
   sections.sort((a, b) => {
     const da = new Date(a.data[0].transaction_date || a.data[0].created_at).getTime();
     const db = new Date(b.data[0].transaction_date || b.data[0].created_at).getTime();
     return db - da;
   });
-
   return sections;
 }
 
-function AuditLogModal({
-  visible,
-  onClose,
-  expenseId,
+function SwipeableExpenseRow({
+  item,
+  index,
+  userId,
   groupId,
+  onLongPress,
 }: {
-  visible: boolean;
-  onClose: () => void;
-  expenseId: string | null;
+  item: ExpenseWithSplits;
+  index: number;
+  userId: string | undefined;
   groupId: string;
+  onLongPress: () => void;
 }) {
+  const colors = useColors();
+  const swipeRef = useRef<Swipeable>(null);
+  const deleteExpense = useDeleteExpense();
+
+  const isEdited = item.updated_at !== item.created_at;
+  const myShare = item.splits?.find((s) => s.user_id === userId);
+  const isPayer = myShare?.is_payer;
+  const payerSplit = item.splits?.find((s) => s.is_payer);
+  const payer = payerSplit?.user ?? item.creator;
+  const payerName = payer?.full_name ?? 'Unknown';
+  const lentAmount = isPayer ? item.amount - Number(myShare?.owed_amount ?? 0) : 0;
+
+  // Status dot color
+  const dotColor = !myShare ? colors.textTertiary : isPayer ? colors.success : colors.danger;
+
+  const renderRightActions = () => (
+    <Pressable
+      style={[styles.swipeAction, { backgroundColor: colors.danger }]}
+      onPress={() => {
+        impact('medium');
+        swipeRef.current?.close();
+        Alert.alert('Delete Expense', `Delete "${item.title}"?`, [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Delete', style: 'destructive',
+            onPress: () => deleteExpense.mutate({ expenseId: item.id, groupId }),
+          },
+        ]);
+      }}
+    >
+      <Trash2 size={20} color="#FFFFFF" />
+      <Text style={styles.swipeActionText}>Delete</Text>
+    </Pressable>
+  );
+
+  const renderLeftActions = () => (
+    <Pressable
+      style={[styles.swipeAction, { backgroundColor: colors.accent }]}
+      onPress={() => {
+        impact('light');
+        swipeRef.current?.close();
+        router.push(`/group/${groupId}/edit-expense?expenseId=${item.id}`);
+      }}
+    >
+      <Pencil size={20} color="#FFFFFF" />
+      <Text style={styles.swipeActionText}>Edit</Text>
+    </Pressable>
+  );
+
+  return (
+    <FadeInItem index={index}>
+      <Swipeable
+        ref={swipeRef}
+        renderRightActions={renderRightActions}
+        renderLeftActions={renderLeftActions}
+        overshootLeft={false}
+        overshootRight={false}
+        friction={2}
+      >
+        <Pressable
+          style={[styles.expenseRow, { backgroundColor: colors.background, borderBottomColor: colors.borderLight }]}
+          onPress={() => router.push(`/group/${groupId}/edit-expense?expenseId=${item.id}`)}
+          onLongPress={onLongPress}
+        >
+          <View style={styles.dateColumn}>
+            <Text style={[styles.dateDay, { color: colors.accent }]}>
+              {format(new Date(item.transaction_date), 'dd')}
+            </Text>
+            <Text style={[styles.dateMonth, { color: colors.textTertiary }]}>
+              {format(new Date(item.transaction_date), 'MMM')}
+            </Text>
+          </View>
+
+          <View style={[styles.statusDot, { backgroundColor: dotColor }]} />
+
+          <View style={{ flex: 1, gap: 3 }}>
+            <Text style={[styles.expenseTitle, { color: colors.textPrimary }]}>{item.title}</Text>
+            {item.description ? (
+              <Text style={[styles.expenseDesc, { color: colors.textTertiary }]} numberOfLines={1}>
+                {item.description}
+              </Text>
+            ) : null}
+            <View style={styles.payerInfoRow}>
+              <Avatar
+                name={payer?.full_name ?? 'Unknown'}
+                uri={payer?.avatar_url ?? undefined}
+                size={20}
+              />
+              <Text style={[styles.payerInfoText, { color: colors.textSecondary }]} numberOfLines={1}>
+                {(payer?.id === userId ? 'You' : payerName)} paid {formatCurrency(item.amount)}
+              </Text>
+            </View>
+          </View>
+
+          <View style={{ alignItems: 'flex-end', gap: 4 }}>
+            {isEdited && <Badge label="Edited" variant="neutral" size="sm" />}
+            {!myShare ? (
+              <Text style={[styles.uninvolvedText, { color: colors.textTertiary }]}>Not involved</Text>
+            ) : isPayer ? (
+              <Text style={[styles.amountText, { color: colors.success }]}>+ {formatCurrency(lentAmount)}</Text>
+            ) : (
+              <Text style={[styles.amountText, { color: colors.danger }]}>- {formatCurrency(Number(myShare.owed_amount) ?? 0)}</Text>
+            )}
+          </View>
+        </Pressable>
+      </Swipeable>
+    </FadeInItem>
+  );
+}
+
+function AuditLogModal({
+  visible, onClose, expenseId, groupId,
+}: { visible: boolean; onClose: () => void; expenseId: string | null; groupId: string }) {
   const colors = useColors();
   const [logs, setLogs] = React.useState<(AuditLogEntry & { modifier?: { full_name: string } })[]>([]);
 
   React.useEffect(() => {
     if (!visible || !expenseId) return;
     let cancelled = false;
-
     supabase
       .from('audit_log')
       .select('*, modifier:profiles!modified_by(full_name)')
@@ -105,14 +221,13 @@ function AuditLogModal({
         if (error) { console.error('Failed to fetch audit log:', error); return; }
         setLogs((data as any) ?? []);
       });
-
     return () => { cancelled = true; };
   }, [visible, expenseId]);
 
   return (
     <BottomSheet visible={visible} onClose={onClose} title="Edit History">
       {logs.length === 0 ? (
-        <Text style={{ color: colors.textSecondary, textAlign: 'center', paddingVertical: 24 }}>
+        <Text style={{ color: colors.textSecondary, textAlign: 'center', paddingVertical: 24, ...TYPOGRAPHY.bodyMd }}>
           No edit history
         </Text>
       ) : (
@@ -162,40 +277,44 @@ export default function GroupDetailScreen() {
   if (!group) return null;
 
   const myBalance = balanceData?.balances.find((b) => b.userId === userId);
-
-  // Default group icon
   const groupIcon = group.icon_url ?? 'Users';
 
   return (
     <Screen>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => router.push('/(tabs)')}
-          accessibilityLabel="Back"
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        <Pressable
+          onPress={() => { impact('light'); router.push('/(tabs)'); }}
+          hitSlop={10}
         >
-          <ArrowLeft size={20} color={colors.accent} />
-        </TouchableOpacity>
+          <ArrowLeft size={22} color={colors.accent} />
+        </Pressable>
         <View style={styles.headerCenter}>
-          <GroupIcon name={groupIcon} size={18} color={colors.textPrimary} />
-          <Text style={[styles.title, { color: colors.textPrimary }]} numberOfLines={1}>{group.name}</Text>
+          <View style={[styles.headerIconCircle, { backgroundColor: colors.accentDim }]}>
+            <GroupIcon name={groupIcon} size={16} color={colors.accent} />
+          </View>
+          <Text style={[styles.headerTitle, { color: colors.textPrimary }]} numberOfLines={1}>{group.name}</Text>
         </View>
-        <TouchableOpacity
+        <Pressable
           onPress={() => router.push(`/group/${id}/members`)}
-          accessibilityLabel="Members"
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          hitSlop={10}
         >
-          <Info size={20} color={colors.accent} />
-        </TouchableOpacity>
+          <Info size={22} color={colors.accent} />
+        </Pressable>
       </View>
 
       {/* Balance Card */}
-      <Card style={styles.balanceCard}>
+      <Card variant="glass" glow style={styles.balanceCard}>
+        <LinearGradient
+          colors={[...GRADIENTS.lavender] as [string, string, ...string[]]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={styles.balanceAccentLine}
+        />
         <Text style={[styles.balanceLabel, { color: colors.textSecondary }]}>Your Balance</Text>
         <BalanceText amount={myBalance?.netBalance ?? 0} size="xl" />
         {balanceData && balanceData.simplifiedDebts.length > 0 && (
-          <View style={[styles.debtsPreview, { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.borderLight }]}>
+          <View style={[styles.debtsPreview, { borderTopColor: colors.borderLight }]}>
             {balanceData.simplifiedDebts.slice(0, 3).map((debt, i) => (
               <Text key={i} style={[styles.debtLine, { color: colors.textSecondary }]}>
                 {debt.fromName} → {debt.toName}: {formatCurrency(debt.amount)}
@@ -212,18 +331,20 @@ export default function GroupDetailScreen() {
           <Button
             title="Settle Up"
             onPress={() => router.push(`/group/${id}/settle`)}
-            variant="secondary"
+            variant="outline"
             size="sm"
           />
         </View>
       </Card>
 
-      {/* Expense List */}
-      <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Expenses</Text>
-      </View>
+      {/* Swipe hint */}
+      {expenses && expenses.length > 0 && (
+        <Text style={[styles.swipeHint, { color: colors.textTertiary }]}>
+          Swipe rows to edit or delete
+        </Text>
+      )}
 
-      {/* Group expenses into sections by month/year and show a date column on the left */}
+      {/* Expense List */}
       <SectionList
         sections={(expenses ?? []).length > 0 ? groupExpensesByMonthYear(expenses ?? []) : []}
         stickySectionHeadersEnabled={false}
@@ -254,83 +375,18 @@ export default function GroupDetailScreen() {
             <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>{s.title}</Text>
           </View>
         )}
-        renderItem={({ item }) => {
-          const isEdited = item.updated_at !== item.created_at;
-          const myShare = item.splits?.find((s) => s.user_id === userId);
-          const isPayer = myShare?.is_payer;
-          const payerSplit = item.splits?.find((s) => s.is_payer);
-          const payer = payerSplit?.user ?? item.creator;
-          const payerName = payer?.full_name ?? 'Unknown';
-
-          const lentAmount = isPayer
-            ? item.amount - Number(myShare?.owed_amount ?? 0)
-            : 0;
-
-          return (
-            <TouchableOpacity
-              activeOpacity={0.7}
-              style={[styles.expenseRow, { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.borderLight }]}
-              onPress={() => {
-                router.push(`/group/${id}/edit-expense?expenseId=${item.id}`);
-              }}
-              onLongPress={() => {
-                setAuditExpenseId(item.id);
-                setShowAudit(true);
-              }}
-            >
-              <View style={styles.dateColumn}>
-                <Text style={[styles.dateDay, { color: colors.accent }]}>{format(new Date(item.transaction_date), 'dd')}</Text>
-                <Text style={[styles.dateMonth, { color: colors.textTertiary }]}>{format(new Date(item.transaction_date), 'MMM')}</Text>
-              </View>
-
-              <View style={{ flex: 1, gap: 3 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <Text style={[styles.expenseTitle, { color: colors.textPrimary }]}>{item.title}</Text>
-                </View>
-                {item.description ? (
-                  <Text style={[styles.expenseDesc, { color: colors.textTertiary }]} numberOfLines={1}>
-                    {item.description}
-                  </Text>
-                ) : null}
-                <View style={styles.payerInfoRow}>
-                  <Avatar
-                    name={payer?.full_name ?? 'Unknown'}
-                    uri={payer?.avatar_url ?? undefined}
-                    size={20}
-                  />
-                  <Text style={[styles.payerInfoText, { color: colors.textSecondary }]} numberOfLines={1}>
-                    {(payer?.id === userId ? 'You' : payerName)} paid {formatCurrency(item.amount)}
-                  </Text>
-                </View>
-                <Text style={[styles.expenseDate, { color: colors.textTertiary }]}> 
-                  {format(new Date(item.transaction_date || item.created_at), 'hh:mm a')}
-                </Text>
-              </View>
-
-              <View style={{ alignItems: 'flex-end', gap: 4 }}>
-                {!myShare ? (
-                  <Text style={{ color: colors.textTertiary, fontSize: 13, fontWeight: '500', marginTop: isEdited ? 16 : 0 }}>
-                    Not involved
-                  </Text>
-                ) : isPayer ? (
-                  <Text style={{ color: colors.success, fontSize: 16, fontWeight: '700', marginTop: isEdited ? 16 : 0 }}>
-                    + {formatCurrency(lentAmount)}
-                  </Text>
-                ) : (
-                  <Text style={{ color: colors.danger, fontSize: 16, fontWeight: '700', marginTop: isEdited ? 16 : 0 }}>
-                    - {formatCurrency(Number(myShare.owed_amount) ?? 0)}
-                  </Text>
-                )}
-              </View>
-
-              {isEdited && (
-                <View style={{ position: 'absolute', top: SPACING.sm, right: SPACING.sm }}>
-                  <Badge label="Edited" variant="neutral" size="sm" />
-                </View>
-              )}
-            </TouchableOpacity>
-          );
-        }}
+        renderItem={({ item, index }) => (
+          <SwipeableExpenseRow
+            item={item}
+            index={index}
+            userId={userId}
+            groupId={id!}
+            onLongPress={() => {
+              setAuditExpenseId(item.id);
+              setShowAudit(true);
+            }}
+          />
+        )}
       />
 
       <AuditLogModal
@@ -339,8 +395,6 @@ export default function GroupDetailScreen() {
         expenseId={auditExpenseId}
         groupId={id!}
       />
-
-      {/* Deletion is handled from Dashboard only — removed inline delete controls here */}
 
       <UndoToast />
     </Screen>
@@ -357,50 +411,63 @@ const styles = StyleSheet.create({
   headerCenter: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
     flex: 1,
     justifyContent: 'center',
     marginHorizontal: 8,
   },
-  backBtn: {
-    fontSize: 16,
-    fontWeight: '600',
+  headerIconCircle: {
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  title: {
-    fontSize: 17,
+  headerTitle: {
+    ...TYPOGRAPHY.bodyLg,
     fontWeight: '700',
-  },
-  membersBtn: {
-    fontSize: 15,
-    fontWeight: '600',
   },
   balanceCard: {
     marginTop: SPACING.sm,
     alignItems: 'center',
     gap: SPACING.md,
+    overflow: 'hidden',
+  },
+  balanceAccentLine: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 3,
   },
   balanceLabel: {
-    fontSize: 13,
-    fontWeight: '500',
+    ...TYPOGRAPHY.labelMd,
   },
   debtsPreview: {
     width: '100%',
     paddingTop: SPACING.md,
     gap: 4,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
   debtLine: {
-    fontSize: 13,
+    ...TYPOGRAPHY.caption,
   },
   balanceActions: {
     flexDirection: 'row',
     gap: SPACING.sm,
+  },
+  swipeHint: {
+    ...TYPOGRAPHY.caption,
+    textAlign: 'center',
+    paddingTop: SPACING.md,
+    paddingBottom: SPACING.xs,
   },
   section: {
     paddingTop: SPACING.xl,
     paddingBottom: SPACING.sm,
   },
   sectionTitle: {
-    fontSize: 16,
+    ...TYPOGRAPHY.labelLg,
     fontWeight: '700',
   },
   expenseRow: {
@@ -408,32 +475,33 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: SPACING.md,
     paddingHorizontal: SPACING.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   dateColumn: {
-    width: 72,
+    width: 56,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingRight: SPACING.sm,
+    paddingRight: SPACING.xs,
   },
   dateDay: {
-    fontSize: 18,
-    fontWeight: '700',
+    ...TYPOGRAPHY.h2,
   },
   dateMonth: {
-    fontSize: 12,
-    fontWeight: '500',
-    textTransform: 'uppercase',
+    ...TYPOGRAPHY.overline,
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginRight: 8,
   },
   expenseTitle: {
-    fontSize: 15,
+    ...TYPOGRAPHY.bodyMd,
     fontWeight: '600',
   },
   expenseDesc: {
-    fontSize: 13,
+    ...TYPOGRAPHY.caption,
     fontStyle: 'italic',
-  },
-  expenseMeta: {
-    fontSize: 13,
   },
   payerInfoRow: {
     flexDirection: 'row',
@@ -441,14 +509,27 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   payerInfoText: {
-    fontSize: 13,
+    ...TYPOGRAPHY.caption,
     flex: 1,
   },
-  expenseDate: {
-    fontSize: 12,
+  uninvolvedText: {
+    ...TYPOGRAPHY.caption,
+    fontWeight: '500',
   },
-  tapHint: {
-    fontSize: 12,
+  amountText: {
+    ...TYPOGRAPHY.bodyMd,
+    fontWeight: '700',
+  },
+  swipeAction: {
+    width: 80,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  swipeActionText: {
+    color: '#FFFFFF',
+    ...TYPOGRAPHY.caption,
+    fontWeight: '600',
   },
   auditRow: {
     flexDirection: 'row',
@@ -456,11 +537,11 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   auditUser: {
-    fontSize: 15,
+    ...TYPOGRAPHY.bodyMd,
     fontWeight: '500',
   },
   auditTime: {
-    fontSize: 13,
+    ...TYPOGRAPHY.caption,
   },
   changesList: {
     marginTop: 4,

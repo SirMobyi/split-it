@@ -1,39 +1,28 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, StyleSheet, Animated, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
 import { Undo2 } from 'lucide-react-native';
 import { useToastStore } from '../../stores/toast-store';
-import { COLORS, SPACING } from '../../constants/theme';
+import { useColors } from '../../hooks/use-colors';
+import { SPACING, TYPOGRAPHY } from '../../constants/theme';
+import { impact } from '../../utils/haptics';
 
 const TOAST_DURATION = 3000;
 
 export function UndoToast() {
+  const colors = useColors();
   const { toast, dismissToast } = useToastStore();
   const [undoing, setUndoing] = useState(false);
-  const slideAnim = useRef(new Animated.Value(100)).current;
-  const progressAnim = useRef(new Animated.Value(1)).current;
+  const translateY = useRef(new Animated.Value(100)).current;
+  const progressWidth = useRef(new Animated.Value(1)).current;
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (toast) {
-      // Reset and animate in
-      slideAnim.setValue(100);
-      progressAnim.setValue(1);
+      impact('light');
+      Animated.spring(translateY, { toValue: 0, tension: 80, friction: 10, useNativeDriver: true }).start();
+      progressWidth.setValue(1);
+      Animated.timing(progressWidth, { toValue: 0, duration: TOAST_DURATION, useNativeDriver: false }).start();
 
-      Animated.spring(slideAnim, {
-        toValue: 0,
-        useNativeDriver: true,
-        tension: 80,
-        friction: 10,
-      }).start();
-
-      // Progress bar countdown
-      Animated.timing(progressAnim, {
-        toValue: 0,
-        duration: TOAST_DURATION,
-        useNativeDriver: false,
-      }).start();
-
-      // Auto-dismiss after duration
       timerRef.current = setTimeout(() => {
         handleDismiss();
       }, TOAST_DURATION);
@@ -45,14 +34,11 @@ export function UndoToast() {
   }, [toast?.id]);
 
   const handleDismiss = () => {
-    Animated.timing(slideAnim, {
-      toValue: 100,
-      duration: 200,
-      useNativeDriver: true,
-    }).start(() => {
+    Animated.timing(translateY, { toValue: 100, duration: 200, useNativeDriver: true }).start();
+    setTimeout(() => {
       dismissToast();
       setUndoing(false);
-    });
+    }, 200);
   };
 
   const handleUndo = async () => {
@@ -63,42 +49,46 @@ export function UndoToast() {
     try {
       await toast.onUndo();
     } catch {
-      // Undo failed — toast will dismiss anyway
+      // Undo failed
     }
     handleDismiss();
   };
 
-  if (!toast) return null;
-
-  const progressWidth = progressAnim.interpolate({
+  // Map progressWidth [0,1] → percentage string for width
+  const barWidth = progressWidth.interpolate({
     inputRange: [0, 1],
     outputRange: ['0%', '100%'],
   });
+
+  if (!toast) return null;
 
   return (
     <Animated.View
       style={[
         styles.container,
-        { transform: [{ translateY: slideAnim }] },
+        { transform: [{ translateY }] },
+        {
+          backgroundColor: colors.surface2,
+          borderColor: colors.border,
+        },
       ]}
     >
       <View style={styles.content}>
-        <Text style={styles.message} numberOfLines={1}>
+        <Text style={[styles.message, { color: colors.textPrimary }]} numberOfLines={1}>
           {toast.message}
         </Text>
         <TouchableOpacity
-          style={styles.undoButton}
+          style={[styles.undoButton, { backgroundColor: colors.accentDim }]}
           onPress={handleUndo}
           disabled={undoing}
           activeOpacity={0.7}
         >
-          <Undo2 size={14} color={COLORS.accent} />
-          <Text style={styles.undoText}>{undoing ? 'Undoing...' : 'Undo'}</Text>
+          <Undo2 size={14} color={colors.accent} />
+          <Text style={[styles.undoText, { color: colors.accent }]}>{undoing ? 'Undoing...' : 'Undo'}</Text>
         </TouchableOpacity>
       </View>
-      {/* Progress bar */}
-      <View style={styles.progressTrack}>
-        <Animated.View style={[styles.progressBar, { width: progressWidth }]} />
+      <View style={[styles.progressTrack, { backgroundColor: colors.border }]}>
+        <Animated.View style={[styles.progressBar, { width: barWidth, backgroundColor: colors.accent }]} />
       </View>
     </Animated.View>
   );
@@ -110,10 +100,8 @@ const styles = StyleSheet.create({
     bottom: 100,
     left: SPACING.lg,
     right: SPACING.lg,
-    backgroundColor: COLORS.surface2,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.border,
     overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
@@ -130,9 +118,8 @@ const styles = StyleSheet.create({
   },
   message: {
     flex: 1,
-    color: COLORS.textPrimary,
+    ...TYPOGRAPHY.labelSm,
     fontSize: 14,
-    fontWeight: '500',
   },
   undoButton: {
     flexDirection: 'row',
@@ -141,19 +128,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.md,
     paddingVertical: 6,
     borderRadius: 8,
-    backgroundColor: COLORS.accentDim,
   },
   undoText: {
-    color: COLORS.accent,
-    fontSize: 13,
+    ...TYPOGRAPHY.labelSm,
     fontWeight: '700',
   },
   progressTrack: {
     height: 3,
-    backgroundColor: COLORS.border,
   },
   progressBar: {
     height: '100%',
-    backgroundColor: COLORS.accent,
   },
 });

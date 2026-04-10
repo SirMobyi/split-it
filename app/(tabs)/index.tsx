@@ -1,17 +1,35 @@
-import React, { useMemo, useState } from 'react';
-import { View, Text, FlatList, StyleSheet, TouchableOpacity, Alert, Platform } from 'react-native';
+import React, { useMemo, useState, useRef, useEffect } from 'react';
+import { View, Text, FlatList, StyleSheet, Pressable, Alert, Platform, Animated } from 'react-native';
 import { router } from 'expo-router';
-import { Users, Trash2 } from 'lucide-react-native';
-import { Screen, Card, Avatar, BalanceText, EmptyState, GroupIcon, SkeletonBalanceCard, SkeletonCard, Button, Input, BottomSheet } from '../../src/components/ui';
+import { Users, Trash2, ChevronRight, Check } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+
+function FadeInItem({ index, children }: { index: number; children: React.ReactNode }) {
+  const opacity = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(20)).current;
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(opacity, { toValue: 1, duration: 400, delay: index * 80, useNativeDriver: true }),
+      Animated.timing(translateY, { toValue: 0, duration: 400, delay: index * 80, useNativeDriver: true }),
+    ]).start();
+  }, []);
+  return <Animated.View style={{ opacity, transform: [{ translateY }] }}>{children}</Animated.View>;
+}
+import {
+  Screen, Card, Avatar, BalanceText, EmptyState, GroupIcon, AvatarStack,
+  SkeletonBalanceCard, SkeletonCard, Button, Input, BottomSheet, AnimatedNumber,
+} from '../../src/components/ui';
 import { useJoinGroup, useDeleteGroup } from '../../src/hooks/use-groups';
 import { useAuthStore } from '../../src/stores/auth-store';
 import { useGroups } from '../../src/hooks/use-groups';
 import { useAllGroupBalances } from '../../src/hooks/use-balances';
-import { useColors } from '../../src/hooks/use-colors';
-import { SPACING, SHADOWS, formatCurrency } from '../../src/constants/theme';
+import { useColors, useShadows } from '../../src/hooks/use-colors';
+import { SPACING, TYPOGRAPHY, GRADIENTS, RADIUS, formatCurrency } from '../../src/constants/theme';
+import { impact } from '../../src/utils/haptics';
 
 function BalanceOverview() {
   const colors = useColors();
+  const shadows = useShadows();
   const profile = useAuthStore((s) => s.profile);
   const userId = useAuthStore((s) => s.session?.user.id);
   const { data: groups } = useGroups();
@@ -41,28 +59,55 @@ function BalanceOverview() {
     };
   }, [allBalances, userId]);
 
+  const netBalance = totalOwed - totalOwe;
+  const isPositive = netBalance > 0.01;
+  const isNegative = netBalance < -0.01;
+
   return (
-    <Card variant="elevated" style={styles.overviewCard}>
+    <Card variant="glass" glow style={styles.overviewCard}>
+      {/* Gradient accent line at top */}
+      <LinearGradient
+        colors={[...GRADIENTS.lavender] as [string, string, ...string[]]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={styles.accentLine}
+      />
+
       <View style={styles.balanceRow}>
         <View style={styles.balanceItem}>
           <Text style={[styles.balanceLabel, { color: colors.textSecondary }]}>You are owed</Text>
-          <BalanceText amount={totalOwed} size="xl" showSign={false} />
+          <AnimatedNumber
+            value={totalOwed}
+            style={{ color: colors.success, fontSize: 22, fontWeight: '800', textAlign: 'center', width: '100%' }}
+            prefix="₹"
+          />
         </View>
+        <View style={[styles.balanceDivider, { backgroundColor: colors.borderLight }]} />
         <View style={styles.balanceItem}>
           <Text style={[styles.balanceLabel, { color: colors.textSecondary }]}>You owe</Text>
-          <BalanceText amount={totalOwe} size="xl" showSign={false} />
+          <AnimatedNumber
+            value={totalOwe}
+            style={{ color: colors.danger, fontSize: 22, fontWeight: '800', textAlign: 'center', width: '100%' }}
+            prefix="₹"
+          />
         </View>
       </View>
 
       <View style={[styles.netRow, { backgroundColor: colors.surface }]}>
-        <Text style={[styles.netLabel, { color: colors.textSecondary }]}>Net Balance</Text>
-        <BalanceText amount={totalOwed - totalOwe} size="xl" />
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <View style={[
+            styles.netDot,
+            { backgroundColor: isPositive ? colors.success : isNegative ? colors.danger : colors.textTertiary },
+          ]} />
+          <Text style={[styles.netLabel, { color: colors.textSecondary }]}>Net Balance</Text>
+        </View>
+        <BalanceText amount={netBalance} size="xl" />
       </View>
     </Card>
   );
 }
 
-function GroupCard({ group, onDelete }: { group: any; onDelete: (g: any) => void }) {
+function GroupCard({ group, onDelete, index }: { group: any; onDelete: (g: any) => void; index: number }) {
   const colors = useColors();
   const userId = useAuthStore((s) => s.session?.user.id);
   const allBalances = useAllGroupBalances([group.id]);
@@ -75,52 +120,50 @@ function GroupCard({ group, onDelete }: { group: any; onDelete: (g: any) => void
   const isCreator = group.created_by === userId;
   const isGroupSettled = !!balanceData && Array.isArray(balanceData.simplifiedDebts) && balanceData.simplifiedDebts.length === 0;
 
-  return (
-    <Card>
-      <View style={styles.groupRow}>
-        <TouchableOpacity
-          onPress={() => router.push(`/group/${group.id}`)}
-          style={{ flex: 1, gap: 8, opacity: isSettled ? 0.5 : 1 }}
-          activeOpacity={0.8}
-        >
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            <GroupIcon name={groupIcon} size={20} color={colors.textPrimary} />
-            <Text style={[styles.groupName, { color: colors.textPrimary }]}>{group.name}</Text>
-          </View>
-          <View style={styles.avatarRow}>
-            {activeMembers.slice(0, 4).map((m: any) => (
-              <Avatar
-                key={m.user_id}
-                name={m.profile?.full_name ?? '?'}
-                uri={m.profile?.avatar_url}
-                size={28}
-              />
-            ))}
-            {activeMembers.length > 4 && (
-              <Text style={[styles.moreText, { color: colors.textTertiary }]}>+{activeMembers.length - 4}</Text>
-            )}
-          </View>
-        </TouchableOpacity>
+  const avatarItems = activeMembers.map((m: any) => ({
+    name: m.profile?.full_name ?? '?',
+    uri: m.profile?.avatar_url,
+  }));
 
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+  return (
+    <FadeInItem index={index}>
+      <Card
+        onPress={() => { impact('light'); router.push(`/group/${group.id}`); }}
+      >
+        <View style={styles.groupRow}>
+          <View style={[styles.groupIconCircle, { backgroundColor: colors.accentDim }]}>
+            <GroupIcon name={groupIcon} size={18} color={colors.accent} />
+          </View>
+          <View style={{ flex: 1, gap: 4 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={[styles.groupName, { color: colors.textPrimary }]} numberOfLines={1}>
+                {group.name}
+              </Text>
+              {isSettled && isGroupSettled && (
+                <View style={[styles.settledBadge, { backgroundColor: colors.successDim }]}>
+                  <Check size={12} color={colors.success} strokeWidth={3} />
+                </View>
+              )}
+            </View>
+            <AvatarStack items={avatarItems} max={3} size={22} />
+          </View>
           {myBalance && Math.abs(myBalance.netBalance) > 0.01 && (
             <BalanceText amount={myBalance.netBalance} size="sm" />
           )}
-          {isCreator && isGroupSettled && (
-            <TouchableOpacity
-              onPress={(e) => {
-                e.stopPropagation();
-                onDelete(group);
-              }}
+          {isCreator && isGroupSettled ? (
+            <Pressable
+              onPress={() => { impact('medium'); onDelete(group); }}
               style={styles.deleteButton}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              <Trash2 size={20} color={colors.danger} />
-            </TouchableOpacity>
+              <Trash2 size={18} color={colors.danger} />
+            </Pressable>
+          ) : (
+            <ChevronRight size={18} color={colors.textTertiary} />
           )}
         </View>
-      </View>
-    </Card>
+      </Card>
+    </FadeInItem>
   );
 }
 
@@ -162,15 +205,23 @@ export default function DashboardScreen() {
   };
 
   const profile = useAuthStore((s) => s.profile);
-
   if (!profile) return null;
+
+  const now = new Date();
+  const dateString = now.toLocaleDateString('en-IN', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  });
 
   return (
     <Screen scrollable refreshing={isRefetching} onRefresh={refetch}>
-      {/* Large Title */}
-      <Text style={[styles.largeTitle, { color: colors.textPrimary }]}>
-        Hey, {profile?.full_name?.split(' ')[0] ?? 'there'}
-      </Text>
+      <View style={styles.greetingBlock}>
+        <Text style={[styles.largeTitle, { color: colors.textPrimary }]}>
+          Hey, {profile?.full_name?.split(' ')[0] ?? 'there'}
+        </Text>
+        <Text style={[styles.dateText, { color: colors.textTertiary }]}>{dateString}</Text>
+      </View>
 
       {isLoading ? (
         <View style={{ gap: SPACING.lg }}>
@@ -185,12 +236,17 @@ export default function DashboardScreen() {
       {!isLoading && (
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Groups</Text>
-            <View style={styles.actionButtonsRow}>
-              <View style={{ flexDirection: 'row', gap: SPACING.sm }}>
-                <Button title="Create" onPress={() => router.push('/group/create')} size="sm" variant="secondary" />
-                <Button title="Join" onPress={() => setShowJoin((s) => !s)} size="sm" variant="primary" />
-              </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Groups</Text>
+              {groups && groups.length > 0 && (
+                <View style={[styles.countBadge, { backgroundColor: colors.accentDim }]}>
+                  <Text style={[styles.countBadgeText, { color: colors.accent }]}>{groups.length}</Text>
+                </View>
+              )}
+            </View>
+            <View style={{ flexDirection: 'row', gap: 6 }}>
+              <Button title="Create" onPress={() => router.push('/group/create')} size="sm" variant="outline" />
+              <Button title="Join" onPress={() => setShowJoin((s) => !s)} size="sm" variant="primary" />
             </View>
           </View>
 
@@ -221,10 +277,11 @@ export default function DashboardScreen() {
             />
           ) : (
             <View style={{ gap: SPACING.md }}>
-              {groups.map((group) => (
+              {groups.map((group, i) => (
                 <GroupCard
                   key={group.id}
                   group={group}
+                  index={i}
                   onDelete={(g) => setGroupToDelete(g)}
                 />
               ))}
@@ -241,17 +298,17 @@ export default function DashboardScreen() {
       >
         <View style={{ gap: SPACING.lg, paddingVertical: SPACING.lg }}>
           <View style={{ gap: 4 }}>
-            <Text style={{ fontSize: 17, fontWeight: '600', color: colors.textPrimary }}>
+            <Text style={[{ ...TYPOGRAPHY.bodyLg, fontWeight: '600' }, { color: colors.textPrimary }]}>
               Are you sure you want to delete "{groupToDelete?.name}"?
             </Text>
-            <Text style={{ fontSize: 15, color: colors.textSecondary, lineHeight: 22 }}>
+            <Text style={[{ ...TYPOGRAPHY.bodyMd }, { color: colors.textSecondary, lineHeight: 22 }]}>
               This action will deactivate the group for all members. This cannot be undone.
             </Text>
           </View>
 
           {errorMsg && (
             <View style={{ backgroundColor: colors.dangerDim, padding: 12, borderRadius: 8 }}>
-              <Text style={{ color: colors.danger, fontSize: 15, fontWeight: '600' }}>
+              <Text style={{ color: colors.danger, ...TYPOGRAPHY.bodyMd, fontWeight: '600' }}>
                 {errorMsg}
               </Text>
             </View>
@@ -284,22 +341,40 @@ export default function DashboardScreen() {
 }
 
 const styles = StyleSheet.create({
-  largeTitle: {
-    fontSize: 38,
-    fontWeight: '800',
-    letterSpacing: 0.37,
+  greetingBlock: {
     marginTop: SPACING.lg,
     marginBottom: SPACING.lg,
+    gap: 4,
+  },
+  largeTitle: {
+    ...TYPOGRAPHY.displayLg,
+  },
+  dateText: {
+    ...TYPOGRAPHY.bodyMd,
   },
   overviewCard: {
-    gap: SPACING.lg,
-    padding: SPACING.xl,
-    borderRadius: 20,
+    gap: SPACING.md,
+    padding: SPACING.lg,
+    borderRadius: RADIUS.xl,
+    overflow: 'hidden',
+  },
+  accentLine: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 3,
+    borderTopLeftRadius: RADIUS.xl,
+    borderTopRightRadius: RADIUS.xl,
   },
   balanceRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING.lg,
+  },
+  balanceDivider: {
+    width: 1,
+    height: 40,
+    marginHorizontal: SPACING.md,
   },
   balanceItem: {
     flex: 1,
@@ -307,19 +382,23 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   balanceLabel: {
-    fontSize: 15,
-    fontWeight: '500',
+    ...TYPOGRAPHY.labelMd,
   },
   netRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    borderRadius: 16,
-    paddingVertical: SPACING.lg,
+    borderRadius: RADIUS.lg,
+    paddingVertical: SPACING.md,
     paddingHorizontal: SPACING.lg,
   },
+  netDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
   netLabel: {
-    fontSize: 15,
+    ...TYPOGRAPHY.labelMd,
     fontWeight: '600',
   },
   section: {
@@ -332,43 +411,43 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.lg,
   },
   sectionTitle: {
-    fontSize: 22,
+    ...TYPOGRAPHY.h2,
+  },
+  countBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  countBadgeText: {
+    ...TYPOGRAPHY.caption,
     fontWeight: '700',
-  },
-  actionButtonsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-  },
-  actionPill: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 999,
-  },
-  actionPillText: {
-    fontSize: 15,
-    fontWeight: '600',
   },
   groupRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: 12,
+  },
+  groupIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   groupName: {
-    fontSize: 18,
+    ...TYPOGRAPHY.bodyMd,
     fontWeight: '700',
+    flexShrink: 1,
   },
-  avatarRow: {
-    flexDirection: 'row',
-    gap: -4,
+  settledBadge: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     alignItems: 'center',
-  },
-  moreText: {
-    fontSize: 13,
-    marginLeft: 6,
+    justifyContent: 'center',
   },
   joinTitle: {
-    fontSize: 15,
+    ...TYPOGRAPHY.bodyMd,
     fontWeight: '500',
   },
   deleteButton: {

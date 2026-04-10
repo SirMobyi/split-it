@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, ActivityIndicator, Platform } from 'react-native';
 import { Slot, useRouter, useSegments } from 'expo-router';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StatusBar } from 'expo-status-bar';
 import * as Linking from 'expo-linking';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -35,7 +36,7 @@ function createPersister(): Persister {
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60,       // 1 min before considered stale
+      staleTime: 0,                // refetch on every invalidation
       gcTime: 1000 * 60 * 60 * 24, // 24h before garbage collected (offline support)
       retry: 2,
       networkMode: 'offlineFirst',  // serve from cache, then revalidate
@@ -163,15 +164,11 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     if (isLoading || hasSeenOnboarding === null) return;
 
     const inAuthGroup = segments[0] === '(auth)';
-    const inOnboarding = segments[0] === '(auth)' && segments[1] === 'onboarding';
 
     if (!session) {
-      if (!hasSeenOnboarding) {
-        // First ever launch — show onboarding
-        if (!inOnboarding) router.replace('/(auth)/onboarding');
-      } else {
-        // Returning user, not logged in → login
-        if (!inAuthGroup) router.replace('/(auth)/login');
+      // If already on an auth screen, stay put (let screens handle own navigation)
+      if (!inAuthGroup) {
+        router.replace(hasSeenOnboarding ? '/(auth)/login' : '/(auth)/onboarding');
       }
     } else if (!profile) {
       // Logged in but no profile → profile setup
@@ -197,7 +194,8 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 }
 
 function ThemedStatusBar() {
-  return <StatusBar style="dark" />;
+  const theme = useThemeStore((s) => s.theme);
+  return <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />;
 }
 
 export default function RootLayout() {
@@ -206,11 +204,13 @@ export default function RootLayout() {
     useThemeStore.getState().loadTheme().catch(() => {});
   }, []);
   return (
-    <PersistQueryClientProvider client={queryClient} persistOptions={{ persister, maxAge: 1000 * 60 * 60 * 24 }}>
-      <ThemedStatusBar />
-      <AuthGate>
-        <Slot />
-      </AuthGate>
-    </PersistQueryClientProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <PersistQueryClientProvider client={queryClient} persistOptions={{ persister, maxAge: 1000 * 60 * 60 * 24 }}>
+        <ThemedStatusBar />
+        <AuthGate>
+          <Slot />
+        </AuthGate>
+      </PersistQueryClientProvider>
+    </GestureHandlerRootView>
   );
 }

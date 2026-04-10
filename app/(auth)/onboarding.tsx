@@ -1,132 +1,205 @@
 import React, { useRef, useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, useWindowDimensions, NativeSyntheticEvent,
-  NativeScrollEvent, TouchableOpacity,
+  NativeScrollEvent, Pressable, Animated,
 } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Users, PieChart, Zap } from 'lucide-react-native';
-import { useColors } from '../../src/hooks/use-colors';
-import { SPACING, LIGHT_COLORS } from '../../src/constants/theme';
+import { LinearGradient } from 'expo-linear-gradient';
+import { SPACING, TYPOGRAPHY, GRADIENTS, LIGHT_COLORS } from '../../src/constants/theme';
 import { Button } from '../../src/components/ui';
-import { useThemeStore } from '../../src/stores/theme-store';
+import { impact } from '../../src/utils/haptics';
 
 const PAGES = [
   {
     Icon: Users,
-    title: 'Split expenses, not friendships',
+    title: 'Split expenses,\nnot friendships',
     body: 'Track shared expenses with friends and roommates in one clean place.',
+    gradient: ['#F3E8FF', '#E8DAEF', '#F6F3FF'] as const,
   },
   {
     Icon: PieChart,
-    title: 'Fair shares, simplified',
+    title: 'Fair shares,\nsimplified',
     body: 'Split equally, by percentage, or assign custom amounts — quick and reliable.',
+    gradient: ['#EDE8FF', '#D5C8F0', '#F3F0FF'] as const,
   },
   {
     Icon: Zap,
-    title: 'Settle up instantly',
+    title: 'Settle up\ninstantly',
     body: 'Quick summaries and UPI payments make settling a breeze.',
+    gradient: ['#E8E2F8', '#C4B5FD', '#FAFAFF'] as const,
   },
 ];
+
+// Use LIGHT_COLORS directly — no global theme mutation.
+const colors = LIGHT_COLORS;
 
 async function markOnboardingSeen() {
   await AsyncStorage.setItem('hasSeenOnboarding', 'true');
 }
 
+function AnimatedIcon({ Icon, index }: { Icon: typeof Users; index: number }) {
+  const scale = useRef(new Animated.Value(0.8)).current;
+  const rotate = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    // Entrance pop
+    setTimeout(() => {
+      Animated.spring(scale, { toValue: 1, damping: 8, stiffness: 150, useNativeDriver: true }).start(() => {
+        // Gentle idle animation per icon type
+        if (index === 0) {
+          // Pulse
+          Animated.loop(
+            Animated.sequence([
+              Animated.timing(scale, { toValue: 1.06, duration: 1200, useNativeDriver: true }),
+              Animated.timing(scale, { toValue: 1, duration: 1200, useNativeDriver: true }),
+            ])
+          ).start();
+        } else if (index === 1) {
+          // Slow rotate
+          Animated.loop(
+            Animated.sequence([
+              Animated.timing(rotate, { toValue: 6, duration: 2000, useNativeDriver: true }),
+              Animated.timing(rotate, { toValue: -6, duration: 2000, useNativeDriver: true }),
+            ])
+          ).start();
+        } else {
+          // Bounce
+          Animated.loop(
+            Animated.sequence([
+              Animated.timing(scale, { toValue: 1.1, duration: 600, useNativeDriver: true }),
+              Animated.timing(scale, { toValue: 0.95, duration: 400, useNativeDriver: true }),
+              Animated.timing(scale, { toValue: 1, duration: 400, useNativeDriver: true }),
+            ])
+          ).start();
+        }
+      });
+    }, index * 100);
+  }, []);
+
+  const rotateStr = rotate.interpolate({ inputRange: [-6, 6], outputRange: ['-6deg', '6deg'] });
+
+  return (
+    <Animated.View style={{ transform: [{ scale }, { rotate: rotateStr }] }}>
+      <LinearGradient
+        colors={[...GRADIENTS.lavender] as [string, string, ...string[]]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.iconWrap}
+      >
+        <Icon size={40} color="#FFFFFF" strokeWidth={1.8} />
+      </LinearGradient>
+    </Animated.View>
+  );
+}
+
+function DotIndicator({ active }: { active: boolean }) {
+  const width = useRef(new Animated.Value(active ? 28 : 8)).current;
+  const bgOpacity = useRef(new Animated.Value(active ? 1 : 0.3)).current;
+
+  useEffect(() => {
+    Animated.spring(width, { toValue: active ? 28 : 8, damping: 15, stiffness: 200, useNativeDriver: false }).start();
+    Animated.timing(bgOpacity, { toValue: active ? 1 : 0.3, duration: 250, useNativeDriver: true }).start();
+  }, [active]);
+
+  return (
+    <Animated.View
+      style={[
+        styles.indicator,
+        { backgroundColor: colors.accent },
+        { width, opacity: bgOpacity },
+      ]}
+    />
+  );
+}
+
 export default function OnboardingScreen() {
-  const globalColors = useColors();
   const { width } = useWindowDimensions();
   const scrollRef = useRef<ScrollView>(null);
   const [currentPage, setCurrentPage] = useState(0);
-  const setTheme = useThemeStore((s) => s.setTheme);
-
-  // Force light theme for onboarding experience so the screens demonstrate the
-  // requested light + lavender design. User can change theme later in settings.
-  useEffect(() => {
-    setTheme('light').catch(() => {});
-  }, [setTheme]);
-
-  // We prefer the explicit light palette for onboarding visuals.
-  const colors = LIGHT_COLORS;
 
   const handleScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const page = Math.round(e.nativeEvent.contentOffset.x / width);
-    setCurrentPage(page);
+    if (page !== currentPage) {
+      setCurrentPage(page);
+      impact('light');
+    }
   };
 
   const isLastPage = currentPage === PAGES.length - 1;
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}> 
-      <View style={styles.topRow}>
-        {!isLastPage ? (
-          <TouchableOpacity onPress={async () => { await markOnboardingSeen(); router.replace('/(auth)/login'); }}>
-            <Text style={[styles.skipText, { color: colors.textTertiary }]}>Skip</Text>
-          </TouchableOpacity>
-        ) : (
-          <View />
-        )}
-      </View>
+    <LinearGradient
+      colors={[...(PAGES[currentPage]?.gradient ?? PAGES[0].gradient)] as [string, string, ...string[]]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 0.5, y: 1 }}
+      style={styles.container}
+    >
+      <SafeAreaView style={styles.safe}>
+        <View style={styles.topRow}>
+          {!isLastPage ? (
+            <Pressable onPress={async () => { await markOnboardingSeen(); router.replace('/(auth)/login'); }}>
+              <Text style={[styles.skipText, { color: colors.textTertiary }]}>Skip</Text>
+            </Pressable>
+          ) : (
+            <View />
+          )}
+        </View>
 
-      <ScrollView
-        ref={scrollRef}
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        onScroll={handleScroll}
-        scrollEventThrottle={16}
-        contentContainerStyle={{ flexGrow: 1 }}
-      >
-        {PAGES.map((page, i) => (
-          <View key={i} style={[styles.page, { width }]}> 
-            <View style={[styles.iconWrap, { backgroundColor: colors.accent }]}> 
-              <page.Icon size={40} color="#FFFFFF" />
+        <ScrollView
+          ref={scrollRef}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          onScroll={handleScroll}
+          scrollEventThrottle={16}
+          contentContainerStyle={{ flexGrow: 1 }}
+        >
+          {PAGES.map((page, i) => (
+            <View key={i} style={[styles.page, { width }]}>
+              <AnimatedIcon Icon={page.Icon} index={i} />
+              <Text style={[styles.title, { color: colors.textPrimary }]}>{page.title}</Text>
+              <Text style={[styles.body, { color: colors.textSecondary }]}>{page.body}</Text>
             </View>
-            <Text style={[styles.title, { color: colors.textPrimary }]}>{page.title}</Text>
-            <Text style={[styles.body, { color: colors.textSecondary }]}>{page.body}</Text>
-          </View>
-        ))}
-      </ScrollView>
-
-      <View style={[styles.footer, { backgroundColor: colors.surface2 }]}> 
-        <View style={styles.dotsRow}>
-          {PAGES.map((_, i) => (
-            <View
-              key={i}
-              style={[
-                styles.indicator,
-                {
-                  backgroundColor: i === currentPage ? colors.accent : colors.borderLight,
-                  width: i === currentPage ? 28 : 8,
-                },
-              ]}
-            />
           ))}
-        </View>
+        </ScrollView>
 
-        <View style={styles.ctaRow}>
-          <Button
-            title={isLastPage ? 'Get Started' : 'Next'}
-            onPress={async () => {
-              if (isLastPage) {
-                await markOnboardingSeen();
-                router.replace('/(auth)/login');
-              } else {
-                scrollRef.current?.scrollTo({ x: (currentPage + 1) * width, animated: true });
-              }
-            }}
-            fullWidth
-            size="lg"
-          />
+        <View style={styles.footer}>
+          <View style={styles.dotsRow}>
+            {PAGES.map((_, i) => (
+              <DotIndicator key={i} active={i === currentPage} />
+            ))}
+          </View>
+
+          <View style={styles.ctaRow}>
+            <Button
+              title={isLastPage ? 'Get Started' : 'Next'}
+              onPress={async () => {
+                impact('medium');
+                if (isLastPage) {
+                  await markOnboardingSeen();
+                  router.replace('/(auth)/login');
+                } else {
+                  scrollRef.current?.scrollTo({ x: (currentPage + 1) * width, animated: true });
+                }
+              }}
+              fullWidth
+              size="lg"
+            />
+          </View>
         </View>
-      </View>
-    </SafeAreaView>
+      </SafeAreaView>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+  },
+  safe: {
     flex: 1,
   },
   topRow: {
@@ -135,8 +208,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   skipText: {
-    fontSize: 16,
-    fontWeight: '600',
+    ...TYPOGRAPHY.labelLg,
   },
   page: {
     alignItems: 'center',
@@ -147,25 +219,23 @@ const styles = StyleSheet.create({
   iconWrap: {
     width: 96,
     height: 96,
-    borderRadius: 24,
+    borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: SPACING.xxl,
-    shadowColor: '#000',
+    shadowColor: '#8B5CF6',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.2,
     shadowRadius: 20,
     elevation: 6,
   },
   title: {
-    fontSize: 36,
-    fontWeight: '800',
+    ...TYPOGRAPHY.displayMd,
     textAlign: 'center',
     marginBottom: SPACING.lg,
-    lineHeight: 44,
   },
   body: {
-    fontSize: 18,
+    ...TYPOGRAPHY.bodyLg,
     textAlign: 'center',
     lineHeight: 26,
     paddingHorizontal: SPACING.lg,
@@ -180,7 +250,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     gap: 8,
-    marginBottom: SPACING.md,
+    marginBottom: SPACING.lg,
   },
   indicator: {
     height: 8,

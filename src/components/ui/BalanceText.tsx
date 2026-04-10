@@ -1,7 +1,7 @@
 import React from 'react';
 import { Text, TextStyle } from 'react-native';
 import { useColors } from '../../hooks/use-colors';
-import { formatCurrency } from '../../constants/theme';
+import { formatCurrency, TYPOGRAPHY } from '../../constants/theme';
 
 interface BalanceTextProps {
   amount: number;
@@ -10,11 +10,11 @@ interface BalanceTextProps {
   style?: TextStyle;
 }
 
-const sizeMap: Record<string, number> = {
-  sm: 15,
-  md: 17,
-  lg: 22,
-  xl: 34,
+const sizeMap = {
+  sm: TYPOGRAPHY.monoSm,
+  md: { fontSize: 17, fontWeight: '700' as const },
+  lg: TYPOGRAPHY.monoMd,
+  xl: TYPOGRAPHY.monoLg,
 };
 
 export function BalanceText({ amount, size = 'md', showSign = true, style }: BalanceTextProps) {
@@ -30,9 +30,10 @@ export function BalanceText({ amount, size = 'md', showSign = true, style }: Bal
 
   const sign = isZero ? '' : isPositive ? '+' : '-';
   const displayAmount = formatCurrency(Math.abs(amount));
+  const typo = sizeMap[size];
 
   return (
-    <Text style={[{ color, fontSize: sizeMap[size], fontWeight: '700' }, style]}>
+    <Text style={[{ color, ...typo }, style]}>
       {showSign ? `${sign} ${displayAmount}` : displayAmount}
     </Text>
   );

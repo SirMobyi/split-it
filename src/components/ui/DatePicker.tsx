@@ -1,28 +1,23 @@
 import React, { useState, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Modal } from 'react-native';
 import {
-  format,
-  startOfMonth,
-  endOfMonth,
-  startOfWeek,
-  endOfWeek,
-  addMonths,
-  subMonths,
-  eachDayOfInterval,
-  isSameMonth,
-  isSameDay,
-  isAfter,
+  format, startOfMonth, endOfMonth, startOfWeek, endOfWeek,
+  addMonths, subMonths, eachDayOfInterval, isSameMonth, isSameDay, isAfter,
 } from 'date-fns';
-import { COLORS, SPACING, RADIUS } from '../../constants/theme';
+import { SPACING, RADIUS, TYPOGRAPHY } from '../../constants/theme';
+import { useColors } from '../../hooks/use-colors';
 
 interface DatePickerProps {
-  value: string; // YYYY-MM-DD
+  value: string;
   onChange: (date: string) => void;
   label?: string;
   maxDate?: Date;
 }
 
+const CELL_SIZE = 40;
+
 export function DatePicker({ value, onChange, label, maxDate }: DatePickerProps) {
+  const colors = useColors();
   const [visible, setVisible] = useState(false);
   const selected = value ? new Date(value + 'T00:00:00') : new Date();
   const [viewMonth, setViewMonth] = useState(startOfMonth(selected));
@@ -43,40 +38,45 @@ export function DatePicker({ value, onChange, label, maxDate }: DatePickerProps)
 
   return (
     <View>
-      {label && <Text style={styles.label}>{label}</Text>}
-      <TouchableOpacity style={styles.trigger} onPress={() => setVisible(true)}>
+      {label && <Text style={[styles.label, { color: colors.textSecondary }]}>{label}</Text>}
+      <TouchableOpacity
+        style={[styles.trigger, { borderColor: colors.border, backgroundColor: colors.surface }]}
+        onPress={() => setVisible(true)}
+      >
         <Text style={styles.triggerIcon}>📅</Text>
-        <Text style={styles.triggerText}>
+        <Text style={[styles.triggerText, { color: colors.textPrimary }]}>
           {value ? format(selected, 'dd MMM yyyy') : 'Select date'}
         </Text>
       </TouchableOpacity>
 
       <Modal visible={visible} transparent animationType="fade" onRequestClose={() => setVisible(false)}>
-        <TouchableOpacity
-          style={styles.overlay}
-          activeOpacity={1}
-          onPress={() => setVisible(false)}
-        >
-          <TouchableOpacity activeOpacity={1} style={styles.calendar}>
-            {/* Month Navigation */}
+        <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => setVisible(false)}>
+          <TouchableOpacity
+            activeOpacity={1}
+            style={[styles.calendar, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          >
             <View style={styles.monthHeader}>
-              <TouchableOpacity onPress={() => setViewMonth(subMonths(viewMonth, 1))} style={styles.navBtn}>
-                <Text style={styles.navText}>‹</Text>
+              <TouchableOpacity
+                onPress={() => setViewMonth(subMonths(viewMonth, 1))}
+                style={[styles.navBtn, { backgroundColor: colors.surface2 }]}
+              >
+                <Text style={[styles.navText, { color: colors.textPrimary }]}>‹</Text>
               </TouchableOpacity>
-              <Text style={styles.monthTitle}>{format(viewMonth, 'MMMM yyyy')}</Text>
-              <TouchableOpacity onPress={() => setViewMonth(addMonths(viewMonth, 1))} style={styles.navBtn}>
-                <Text style={styles.navText}>›</Text>
+              <Text style={[styles.monthTitle, { color: colors.textPrimary }]}>{format(viewMonth, 'MMMM yyyy')}</Text>
+              <TouchableOpacity
+                onPress={() => setViewMonth(addMonths(viewMonth, 1))}
+                style={[styles.navBtn, { backgroundColor: colors.surface2 }]}
+              >
+                <Text style={[styles.navText, { color: colors.textPrimary }]}>›</Text>
               </TouchableOpacity>
             </View>
 
-            {/* Weekday Headers */}
             <View style={styles.weekRow}>
               {['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'].map((d) => (
-                <Text key={d} style={styles.weekDay}>{d}</Text>
+                <Text key={d} style={[styles.weekDay, { color: colors.textTertiary }]}>{d}</Text>
               ))}
             </View>
 
-            {/* Day Grid */}
             <View style={styles.daysGrid}>
               {days.map((day, i) => {
                 const inMonth = isSameMonth(day, viewMonth);
@@ -89,8 +89,8 @@ export function DatePicker({ value, onChange, label, maxDate }: DatePickerProps)
                     key={i}
                     style={[
                       styles.dayCell,
-                      isSelected && styles.dayCellSelected,
-                      isToday && !isSelected && styles.dayCellToday,
+                      isSelected && { backgroundColor: colors.accent },
+                      isToday && !isSelected && { borderWidth: 1, borderColor: colors.accent },
                     ]}
                     onPress={() => !disabled && handleSelect(day)}
                     disabled={disabled}
@@ -98,9 +98,10 @@ export function DatePicker({ value, onChange, label, maxDate }: DatePickerProps)
                     <Text
                       style={[
                         styles.dayText,
-                        !inMonth && styles.dayTextMuted,
-                        isSelected && styles.dayTextSelected,
-                        disabled && styles.dayTextDisabled,
+                        { color: colors.textPrimary },
+                        !inMonth && { color: colors.textTertiary, opacity: 0.4 },
+                        isSelected && { color: '#FAFAFF', fontWeight: '700' },
+                        disabled && { color: colors.textTertiary, opacity: 0.3 },
                       ]}
                     >
                       {format(day, 'd')}
@@ -110,19 +111,18 @@ export function DatePicker({ value, onChange, label, maxDate }: DatePickerProps)
               })}
             </View>
 
-            {/* Quick Actions */}
             <View style={styles.quickActions}>
               <TouchableOpacity
-                style={styles.quickBtn}
+                style={[styles.quickBtn, { backgroundColor: colors.accentDim }]}
                 onPress={() => handleSelect(new Date())}
               >
-                <Text style={styles.quickBtnText}>Today</Text>
+                <Text style={[styles.quickBtnText, { color: colors.accent }]}>Today</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.quickBtn, styles.quickBtnCancel]}
+                style={[styles.quickBtn, { backgroundColor: colors.surface2 }]}
                 onPress={() => setVisible(false)}
               >
-                <Text style={[styles.quickBtnText, { color: COLORS.textSecondary }]}>Cancel</Text>
+                <Text style={[styles.quickBtnText, { color: colors.textSecondary }]}>Cancel</Text>
               </TouchableOpacity>
             </View>
           </TouchableOpacity>
@@ -132,13 +132,9 @@ export function DatePicker({ value, onChange, label, maxDate }: DatePickerProps)
   );
 }
 
-const CELL_SIZE = 40;
-
 const styles = StyleSheet.create({
   label: {
-    color: COLORS.textSecondary,
-    fontSize: 13,
-    fontWeight: '500',
+    ...TYPOGRAPHY.labelSm,
     marginBottom: 6,
   },
   trigger: {
@@ -149,16 +145,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     borderRadius: RADIUS.lg,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.surface,
   },
   triggerIcon: {
     fontSize: 16,
   },
   triggerText: {
-    color: COLORS.textPrimary,
-    fontSize: 15,
-    fontWeight: '500',
+    ...TYPOGRAPHY.labelMd,
   },
   overlay: {
     flex: 1,
@@ -168,13 +160,11 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   calendar: {
-    backgroundColor: COLORS.surface,
     borderRadius: 16,
     padding: SPACING.lg,
     width: '100%',
     maxWidth: 340,
     borderWidth: 1,
-    borderColor: COLORS.border,
   },
   monthHeader: {
     flexDirection: 'row',
@@ -188,17 +178,13 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: COLORS.surface2,
   },
   navText: {
     fontSize: 20,
-    color: COLORS.textPrimary,
     fontWeight: '600',
   },
   monthTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: COLORS.textPrimary,
+    ...TYPOGRAPHY.labelLg,
   },
   weekRow: {
     flexDirection: 'row',
@@ -208,9 +194,8 @@ const styles = StyleSheet.create({
   weekDay: {
     width: CELL_SIZE,
     textAlign: 'center',
-    fontSize: 12,
+    ...TYPOGRAPHY.caption,
     fontWeight: '600',
-    color: COLORS.textTertiary,
   },
   daysGrid: {
     flexDirection: 'row',
@@ -225,29 +210,9 @@ const styles = StyleSheet.create({
     borderRadius: CELL_SIZE / 2,
     marginVertical: 1,
   },
-  dayCellSelected: {
-    backgroundColor: COLORS.accent,
-  },
-  dayCellToday: {
-    borderWidth: 1,
-    borderColor: COLORS.accent,
-  },
   dayText: {
     fontSize: 14,
-    color: COLORS.textPrimary,
     fontWeight: '500',
-  },
-  dayTextMuted: {
-    color: COLORS.textTertiary,
-    opacity: 0.4,
-  },
-  dayTextSelected: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-  },
-  dayTextDisabled: {
-    color: COLORS.textTertiary,
-    opacity: 0.3,
   },
   quickActions: {
     flexDirection: 'row',
@@ -259,14 +224,9 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 16,
     borderRadius: RADIUS.md,
-    backgroundColor: COLORS.accentDim,
-  },
-  quickBtnCancel: {
-    backgroundColor: COLORS.surface2,
   },
   quickBtnText: {
-    fontSize: 13,
+    ...TYPOGRAPHY.labelSm,
     fontWeight: '600',
-    color: COLORS.accent,
   },
 });

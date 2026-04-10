@@ -1,13 +1,12 @@
 import React from 'react';
-import { View } from 'react-native';
-import { 
-  Users, Home, Plane, Pizza, PartyPopper, Building2, 
-  GraduationCap, Briefcase, Dumbbell, Gamepad2, ShoppingCart, Heart 
+import {
+  Users, Home, Plane, Pizza, PartyPopper, Building2,
+  GraduationCap, Briefcase, Dumbbell, Gamepad2, ShoppingCart, Heart
 } from 'lucide-react-native';
-import { COLORS } from '../../constants/theme';
+import { useColors } from '../../hooks/use-colors';
 
-export type GroupIconName = 
-  | 'Users' | 'Home' | 'Plane' | 'Pizza' | 'PartyPopper' | 'Building2' 
+export type GroupIconName =
+  | 'Users' | 'Home' | 'Plane' | 'Pizza' | 'PartyPopper' | 'Building2'
   | 'GraduationCap' | 'Briefcase' | 'Dumbbell' | 'Gamepad2' | 'ShoppingCart' | 'Heart';
 
 export const GROUP_ICON_NAMES: GroupIconName[] = [
@@ -21,9 +20,11 @@ interface GroupIconProps {
   color?: string;
 }
 
-export function GroupIcon({ name, size = 20, color = COLORS.textPrimary }: GroupIconProps) {
-  const iconProps = { size, color };
-  
+export function GroupIcon({ name, size = 20, color }: GroupIconProps) {
+  const colors = useColors();
+  const iconColor = color ?? colors.textPrimary;
+  const iconProps = { size, color: iconColor };
+
   switch (name) {
     case 'Home': return <Home {...iconProps} />;
     case 'Plane': return <Plane {...iconProps} />;
@@ -37,7 +38,7 @@ export function GroupIcon({ name, size = 20, color = COLORS.textPrimary }: Group
     case 'ShoppingCart': return <ShoppingCart {...iconProps} />;
     case 'Heart': return <Heart {...iconProps} />;
     case 'Users':
-    default: 
+    default:
       return <Users {...iconProps} />;
   }
 }

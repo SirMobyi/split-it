@@ -1,16 +1,41 @@
-import React, { useState, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useState, useMemo, useRef } from 'react';
+import { View, Text, StyleSheet, Pressable, Animated } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { CircleCheck } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Screen, Button, Input, Card, Avatar, BalanceText, Badge, BottomSheet } from '../../../src/components/ui';
 import { useGroup } from '../../../src/hooks/use-groups';
 import { useGroupBalances } from '../../../src/hooks/use-balances';
 import { useGroupPayments, useCreatePayment, useConfirmPayment, useEditPayment } from '../../../src/hooks/use-payments';
 import { useAuthStore } from '../../../src/stores/auth-store';
-import { launchUPIPayment, isUPIAvailable } from '../../../src/lib/upi';
-import { SPACING, formatCurrency } from '../../../src/constants/theme';
+import { launchUPIPayment } from '../../../src/lib/upi';
+import { SPACING, TYPOGRAPHY, RADIUS, GRADIENTS, formatCurrency } from '../../../src/constants/theme';
 import { useColors } from '../../../src/hooks/use-colors';
 import { format } from 'date-fns';
+import { impact } from '../../../src/utils/haptics';
+
+function TabSelector({ tab, onSelect }: { tab: string; onSelect: (t: 'settle' | 'history') => void }) {
+  const colors = useColors();
+  const indicatorX = useRef(new Animated.Value(tab === 'settle' ? 0 : 160)).current;
+
+  const handleSelect = (t: 'settle' | 'history') => {
+    impact('light');
+    Animated.spring(indicatorX, { toValue: t === 'settle' ? 0 : 160, damping: 18, stiffness: 200, useNativeDriver: true }).start();
+    onSelect(t);
+  };
+
+  return (
+    <View style={[styles.tabTrack, { backgroundColor: colors.surface3 }]}>
+      <Animated.View style={[styles.tabIndicator, { backgroundColor: colors.surface2 }, { transform: [{ translateX: indicatorX }] }]} />
+      <Pressable style={styles.tabButton} onPress={() => handleSelect('settle')}>
+        <Text style={[styles.tabLabel, { color: tab === 'settle' ? colors.accent : colors.textTertiary }]}>Settle</Text>
+      </Pressable>
+      <Pressable style={styles.tabButton} onPress={() => handleSelect('history')}>
+        <Text style={[styles.tabLabel, { color: tab === 'history' ? colors.accent : colors.textTertiary }]}>History</Text>
+      </Pressable>
+    </View>
+  );
+}
 
 export default function SettleScreen() {
   const colors = useColors();
@@ -29,7 +54,6 @@ export default function SettleScreen() {
   const [tab, setTab] = useState<'settle' | 'history'>('settle');
   const [error, setError] = useState('');
 
-  // Edit payment state
   const [editingPayment, setEditingPayment] = useState<string | null>(null);
   const [editAmount, setEditAmount] = useState('');
   const [editNote, setEditNote] = useState('');
@@ -52,6 +76,7 @@ export default function SettleScreen() {
     if (parsedAmount <= 0) { setError('Amount must be positive'); return; }
 
     try {
+      impact('medium');
       await createPayment.mutateAsync({
         groupId: groupId!,
         payeeId: selectedPayee,
@@ -59,7 +84,6 @@ export default function SettleScreen() {
         note: `Settlement from ${profile?.full_name}`,
       });
 
-      // Try UPI launch on native
       const payee = group?.members?.find((m) => m.user_id === selectedPayee);
       const payeeProfile = payee?.profile;
 
@@ -85,6 +109,7 @@ export default function SettleScreen() {
 
   const handleConfirmReceipt = async (paymentId: string) => {
     try {
+      impact('medium');
       await confirmPayment.mutateAsync({
         paymentId,
         groupId: groupId!,
@@ -132,21 +157,7 @@ export default function SettleScreen() {
         </View>
       ) : null}
 
-      {/* Tabs */}
-      <View style={[styles.tabs, { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.borderLight }]}>
-        <TouchableOpacity
-          style={[styles.tab, tab === 'settle' && { borderBottomWidth: 2, borderBottomColor: colors.accent }]}
-          onPress={() => setTab('settle')}
-        >
-          <Text style={[styles.tabText, { color: colors.textTertiary }, tab === 'settle' && { color: colors.accent }]}>Settle</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, tab === 'history' && { borderBottomWidth: 2, borderBottomColor: colors.accent }]}
-          onPress={() => setTab('history')}
-        >
-          <Text style={[styles.tabText, { color: colors.textTertiary }, tab === 'history' && { color: colors.accent }]}>History</Text>
-        </TouchableOpacity>
-      </View>
+      <TabSelector tab={tab} onSelect={setTab} />
 
       {tab === 'settle' ? (
         <View style={styles.content}>
@@ -157,16 +168,17 @@ export default function SettleScreen() {
                 <Card
                   key={i}
                   onPress={() => {
+                    impact('light');
                     setSelectedPayee(debt.to);
                     setAmount(debt.amount.toFixed(2));
                   }}
-                  style={selectedPayee === debt.to ? { borderColor: colors.accent } : undefined}
+                  style={selectedPayee === debt.to ? { borderColor: colors.accent, borderWidth: 2 } : undefined}
                 >
                   <View style={styles.debtRow}>
-                    <Avatar name={debt.toName} size={36} />
+                    <Avatar name={debt.toName} size={40} ring />
                     <View style={{ flex: 1 }}>
                       <Text style={[styles.debtName, { color: colors.textPrimary }]}>{debt.toName}</Text>
-                      <Text style={{ color: colors.danger, fontSize: 13 }}>
+                      <Text style={{ color: colors.danger, ...TYPOGRAPHY.caption }}>
                         You owe {formatCurrency(debt.amount)}
                       </Text>
                     </View>
@@ -186,10 +198,10 @@ export default function SettleScreen() {
               {myCredits.map((debt, i) => (
                 <Card key={i}>
                   <View style={styles.debtRow}>
-                    <Avatar name={debt.fromName} size={36} />
+                    <Avatar name={debt.fromName} size={40} />
                     <View style={{ flex: 1 }}>
                       <Text style={[styles.debtName, { color: colors.textPrimary }]}>{debt.fromName}</Text>
-                      <Text style={{ color: colors.accent, fontSize: 13 }}>
+                      <Text style={{ color: colors.success, ...TYPOGRAPHY.caption }}>
                         Owes you {formatCurrency(debt.amount)}
                       </Text>
                     </View>
@@ -200,11 +212,16 @@ export default function SettleScreen() {
           )}
 
           {myDebts.length === 0 && myCredits.length === 0 && (
-            <Card style={{ alignItems: 'center', paddingVertical: 32 }}>
-              <View style={{ marginBottom: 8 }}>
-                <CircleCheck size={32} color={colors.accent} />
-              </View>
-              <Text style={[styles.settledText, { color: colors.accent }]}>All settled up!</Text>
+            <Card variant="glass" style={{ alignItems: 'center', paddingVertical: 40, gap: 12 }}>
+              <LinearGradient
+                colors={[...GRADIENTS.success] as [string, string, ...string[]]}
+                style={styles.settledCircle}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                <CircleCheck size={36} color="#FFFFFF" />
+              </LinearGradient>
+              <Text style={[styles.settledText, { color: colors.success }]}>All settled up!</Text>
             </Card>
           )}
 
@@ -233,8 +250,8 @@ export default function SettleScreen() {
       ) : (
         <View style={styles.content}>
           {(!payments || payments.length === 0) ? (
-            <Card style={{ alignItems: 'center', paddingVertical: 24 }}>
-              <Text style={{ color: colors.textSecondary }}>No payment history</Text>
+            <Card variant="glass" style={{ alignItems: 'center', paddingVertical: 24 }}>
+              <Text style={{ color: colors.textSecondary, ...TYPOGRAPHY.bodyMd }}>No payment history</Text>
             </Card>
           ) : (
             <View style={{ gap: SPACING.sm }}>
@@ -263,14 +280,12 @@ export default function SettleScreen() {
                         {format(new Date(p.created_at), 'dd MMM yyyy, hh:mm a')}
                       </Text>
 
-                      {/* Action buttons */}
                       <View style={{ flexDirection: 'row', gap: SPACING.sm, marginTop: 4 }}>
                         {needsMyConfirmation && (
                           <Button
                             title="Confirm Receipt"
                             onPress={() => handleConfirmReceipt(p.id)}
                             size="sm"
-                            variant="primary"
                           />
                         )}
                         {isPayer && p.status === 'PENDING' && (
@@ -310,7 +325,6 @@ export default function SettleScreen() {
         </View>
       )}
 
-      {/* Edit Payment Bottom Sheet */}
       <BottomSheet
         visible={!!editingPayment}
         onClose={() => setEditingPayment(null)}
@@ -342,7 +356,7 @@ export default function SettleScreen() {
             loading={editPayment.isPending}
             fullWidth
           />
-          <Text style={{ fontSize: 12, color: colors.textTertiary, textAlign: 'center' }}>
+          <Text style={{ ...TYPOGRAPHY.caption, color: colors.textTertiary, textAlign: 'center' }}>
             Only pending payments can be edited. Changes are logged in the audit trail.
           </Text>
         </View>
@@ -359,7 +373,7 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.md,
   },
   headerTitle: {
-    fontSize: 17,
+    ...TYPOGRAPHY.bodyLg,
     fontWeight: '700',
   },
   errorBox: {
@@ -368,27 +382,44 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.sm,
   },
   errorText: {
-    fontSize: 15,
+    ...TYPOGRAPHY.bodyMd,
     fontWeight: '500',
   },
-  tabs: {
+  tabTrack: {
     flexDirection: 'row',
+    borderRadius: RADIUS.lg,
+    padding: 3,
     marginBottom: SPACING.lg,
+    position: 'relative',
   },
-  tab: {
+  tabIndicator: {
+    position: 'absolute',
+    top: 3,
+    left: 3,
+    width: 160,
+    height: 36,
+    borderRadius: RADIUS.md,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  tabButton: {
     flex: 1,
-    paddingVertical: 12,
+    height: 36,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  tabText: {
-    fontSize: 15,
+  tabLabel: {
+    ...TYPOGRAPHY.labelMd,
     fontWeight: '600',
   },
   content: {
     paddingBottom: 40,
   },
   sectionTitle: {
-    fontSize: 16,
+    ...TYPOGRAPHY.labelLg,
     fontWeight: '700',
     marginBottom: 4,
   },
@@ -398,19 +429,25 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   debtName: {
-    fontSize: 15,
+    ...TYPOGRAPHY.bodyMd,
     fontWeight: '600',
   },
+  settledCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   settledText: {
-    fontSize: 18,
-    fontWeight: '700',
+    ...TYPOGRAPHY.h2,
   },
   formTitle: {
-    fontSize: 15,
+    ...TYPOGRAPHY.bodyMd,
     fontWeight: '600',
   },
   hint: {
-    fontSize: 13,
+    ...TYPOGRAPHY.caption,
   },
   paymentHeader: {
     flexDirection: 'row',
@@ -418,18 +455,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   paymentTitle: {
-    fontSize: 15,
+    ...TYPOGRAPHY.bodyMd,
     fontWeight: '600',
   },
   paymentAmount: {
-    fontSize: 18,
-    fontWeight: '700',
+    ...TYPOGRAPHY.h2,
   },
   paymentNote: {
-    fontSize: 13,
+    ...TYPOGRAPHY.caption,
     fontStyle: 'italic',
   },
   paymentDate: {
-    fontSize: 13,
+    ...TYPOGRAPHY.caption,
   },
 });

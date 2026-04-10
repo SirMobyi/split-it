@@ -1,9 +1,14 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
-import { View, Text, StyleSheet } from 'react-native';
-import { LayoutDashboard, Zap, CircleUser } from 'lucide-react-native';
-import { useColors } from '../../src/hooks/use-colors';
+import { View, Text, StyleSheet, Pressable, Platform } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { LayoutDashboard, Zap, CircleUser, Plus } from 'lucide-react-native';
+import { router } from 'expo-router';
+import { useColors, useIsDark } from '../../src/hooks/use-colors';
 import { useUnreadCount } from '../../src/hooks/use-notifications';
+import { useUIStore } from '../../src/stores/ui-store';
+import { GRADIENTS, TYPOGRAPHY, SPACING } from '../../src/constants/theme';
+import { impact } from '../../src/utils/haptics';
 
 const TAB_ICONS: Record<string, React.ComponentType<{ size: number; color: string }>> = {
   Dashboard: LayoutDashboard,
@@ -13,28 +18,58 @@ const TAB_ICONS: Record<string, React.ComponentType<{ size: number; color: strin
 
 function TabIcon({ name, focused, badge }: { name: string; focused: boolean; badge?: number }) {
   const colors = useColors();
-  const IconComponent = TAB_ICONS[name];
   const color = focused ? colors.accent : colors.textTertiary;
+  const IconComponent = TAB_ICONS[name];
 
   return (
     <View style={styles.tabIconContainer}>
       <View style={styles.iconWrapper}>
         {IconComponent ? <IconComponent size={24} color={color} /> : null}
         {badge && badge > 0 ? (
-          <View style={[styles.badge, { backgroundColor: colors.accent }]}>
+          <LinearGradient
+            colors={[...GRADIENTS.lavender] as [string, string, ...string[]]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.badge}
+          >
             <Text style={styles.badgeText}>{badge > 9 ? '9+' : badge}</Text>
-          </View>
+          </LinearGradient>
         ) : null}
       </View>
-      <Text style={[styles.tabLabel, { color }]} numberOfLines={1} ellipsizeMode="tail">
-        {name}
-      </Text>
+      {focused && <View style={[styles.activeIndicator, { backgroundColor: colors.accent }]} />}
     </View>
+  );
+}
+
+function FABButton() {
+  const activeGroupId = useUIStore((s) => s.activeGroupId);
+
+  const handlePress = () => {
+    impact('medium');
+    if (activeGroupId) {
+      router.push(`/group/${activeGroupId}/add-expense`);
+    } else {
+      router.push('/group/create');
+    }
+  };
+
+  return (
+    <Pressable onPress={handlePress} style={styles.fabContainer}>
+      <LinearGradient
+        colors={[...GRADIENTS.primary] as [string, string, ...string[]]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.fab}
+      >
+        <Plus size={26} color="#FFFFFF" strokeWidth={2.5} />
+      </LinearGradient>
+    </Pressable>
   );
 }
 
 export default function TabsLayout() {
   const colors = useColors();
+  const isDark = useIsDark();
   const { data: unreadCount } = useUnreadCount();
 
   return (
@@ -42,11 +77,15 @@ export default function TabsLayout() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: colors.surface2,
-          borderTopColor: colors.borderLight,
-          borderTopWidth: StyleSheet.hairlineWidth,
-          height: 84,
+          backgroundColor: isDark ? 'rgba(24, 20, 48, 0.92)' : 'rgba(250, 250, 255, 0.92)',
+          borderTopWidth: 0,
+          height: 88,
           paddingTop: 8,
+          shadowColor: '#8B5CF6',
+          shadowOffset: { width: 0, height: -4 },
+          shadowOpacity: isDark ? 0.15 : 0.06,
+          shadowRadius: 12,
+          elevation: 8,
         },
         tabBarItemStyle: {
           justifyContent: 'center',
@@ -61,6 +100,15 @@ export default function TabsLayout() {
         options={{
           tabBarIcon: ({ focused }) => <TabIcon name="Dashboard" focused={focused} />,
         }}
+        listeners={{
+          tabPress: () => impact('light'),
+        }}
+      />
+      <Tabs.Screen
+        name="fab-placeholder"
+        options={{
+          href: null,
+        }}
       />
       <Tabs.Screen
         name="activity"
@@ -69,11 +117,17 @@ export default function TabsLayout() {
             <TabIcon name="Activity" focused={focused} badge={unreadCount} />
           ),
         }}
+        listeners={{
+          tabPress: () => impact('light'),
+        }}
       />
       <Tabs.Screen
         name="profile"
         options={{
           tabBarIcon: ({ focused }) => <TabIcon name="Profile" focused={focused} />,
+        }}
+        listeners={{
+          tabPress: () => impact('light'),
         }}
       />
     </Tabs>
@@ -83,7 +137,7 @@ export default function TabsLayout() {
 const styles = StyleSheet.create({
   tabIconContainer: {
     alignItems: 'center',
-    gap: 2,
+    gap: 3,
   },
   iconWrapper: {
     alignItems: 'center',
@@ -105,10 +159,27 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
   },
-  tabLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    maxWidth: 64,
-    textAlign: 'center',
+  activeIndicator: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    marginTop: 2,
+  },
+  fabContainer: {
+    position: 'absolute',
+    top: -24,
+    alignSelf: 'center',
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  fab: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

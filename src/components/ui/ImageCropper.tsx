@@ -2,7 +2,8 @@ import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, Platform, Modal } from 'react-native';
 import Cropper, { Area } from 'react-easy-crop';
 import { Button } from './Button';
-import { COLORS, SPACING, RADIUS } from '../../constants/theme';
+import { SPACING, RADIUS, TYPOGRAPHY } from '../../constants/theme';
+import { useColors } from '../../hooks/use-colors';
 
 interface ImageCropperProps {
   visible: boolean;
@@ -38,7 +39,6 @@ const getCroppedImg = async (imageSrc: string, pixelCrop: Area): Promise<string>
 
   ctx.clearRect(0, 0, outputWidth, outputHeight);
 
-  // Circular mask for the final output
   ctx.save();
   ctx.beginPath();
   ctx.arc(outputWidth / 2, outputHeight / 2, Math.min(outputWidth, outputHeight) / 2, 0, Math.PI * 2);
@@ -76,6 +76,7 @@ const getCroppedImg = async (imageSrc: string, pixelCrop: Area): Promise<string>
 };
 
 export function ImageCropper({ visible, imageUri, onCrop, onCancel }: ImageCropperProps) {
+  const colors = useColors();
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<CroppedArea>(null);
@@ -103,8 +104,8 @@ export function ImageCropper({ visible, imageUri, onCrop, onCancel }: ImageCropp
   return (
     <Modal visible={visible} transparent animationType="fade">
       <View style={styles.overlay}>
-        <View style={styles.container}>
-          <Text style={styles.title}>Crop Your Photo</Text>
+        <View style={[styles.container, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}>
+          <Text style={[styles.title, { color: colors.textPrimary }]}>Crop Your Photo</Text>
 
           <View style={styles.cropArea}>
             <Cropper
@@ -124,7 +125,7 @@ export function ImageCropper({ visible, imageUri, onCrop, onCancel }: ImageCropp
 
           {Platform.OS === 'web' && (
             <View style={styles.zoomControl}>
-              <Text style={styles.zoomLabel}>Zoom</Text>
+              <Text style={[styles.zoomLabel, { color: colors.textSecondary }]}>Zoom</Text>
               <input
                 type="range"
                 min={1}
@@ -155,16 +156,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   container: {
-    backgroundColor: COLORS.surface,
     borderRadius: RADIUS.lg,
     padding: SPACING.lg,
     width: '90%',
     maxWidth: 420,
+    borderWidth: 1,
   },
   title: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: COLORS.textPrimary,
+    ...TYPOGRAPHY.h2,
     textAlign: 'center',
     marginBottom: SPACING.lg,
   },
@@ -172,7 +171,7 @@ const styles = StyleSheet.create({
     width: '100%',
     aspectRatio: 1,
     maxHeight: 330,
-    backgroundColor: '#0f0b1e',
+    backgroundColor: '#1A1035',
     borderRadius: RADIUS.lg,
     overflow: 'hidden',
     position: 'relative',
@@ -190,9 +189,8 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.md,
   },
   zoomLabel: {
-    color: COLORS.textSecondary,
+    ...TYPOGRAPHY.bodySm,
     marginBottom: 6,
-    fontSize: 13,
   },
   zoomSlider: {
     width: '100%',

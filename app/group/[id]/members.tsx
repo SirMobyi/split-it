@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Share, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Share, Pressable } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import QRCode from 'react-native-qrcode-svg';
 import { Screen, Button, Card, Avatar, Badge, Input, BottomSheet } from '../../../src/components/ui';
@@ -9,9 +9,10 @@ import { useAuthStore } from '../../../src/stores/auth-store';
 import { exportGroupPDF } from '../../../src/utils/pdf-export';
 import { useGroupExpenses } from '../../../src/hooks/use-expenses';
 import { useGroupPayments } from '../../../src/hooks/use-payments';
-import { SPACING, formatCurrency } from '../../../src/constants/theme';
+import { SPACING, TYPOGRAPHY, RADIUS, formatCurrency } from '../../../src/constants/theme';
 import { useColors } from '../../../src/hooks/use-colors';
 import { GroupIcon, GROUP_ICON_NAMES } from '../../../src/components/ui';
+import { impact } from '../../../src/utils/haptics';
 
 export default function MembersScreen() {
   const colors = useColors();
@@ -35,7 +36,7 @@ export default function MembersScreen() {
 
   const inviteLink = `splitit://join/${group.invite_code}`;
   const isCreator = group.created_by === userId;
-  const currentIcon = group.icon_url ?? 'Users'; // Default template icon
+  const currentIcon = group.icon_url ?? 'Users';
 
   const handleShare = async () => {
     await Share.share({
@@ -49,8 +50,6 @@ export default function MembersScreen() {
       setError(`Your balance is ${formatCurrency(myBalance.netBalance)}. Settle all debts before leaving.`);
       return;
     }
-
-    // Double confirm
     setError('');
     leaveGroup.mutateAsync(groupId!).then(() => {
       router.replace('/(tabs)/groups');
@@ -80,7 +79,6 @@ export default function MembersScreen() {
   const handleSaveGroup = async () => {
     setEditError('');
     if (!editName.trim()) { setEditError('Group name is required'); return; }
-
     try {
       await updateGroup.mutateAsync({
         groupId: groupId!,
@@ -109,10 +107,12 @@ export default function MembersScreen() {
 
       {/* Group Info Card */}
       <Card style={{ alignItems: 'center', gap: SPACING.md }}>
-        <GroupIcon name={currentIcon} size={40} color={colors.accent} />
-        <Text style={{ fontSize: 20, fontWeight: '700', color: colors.textPrimary }}>{group.name}</Text>
+        <View style={[styles.groupIconCircle, { backgroundColor: colors.accentDim }]}>
+          <GroupIcon name={currentIcon} size={32} color={colors.accent} />
+        </View>
+        <Text style={[styles.groupName, { color: colors.textPrimary }]}>{group.name}</Text>
         {isCreator && (
-          <Button title="Edit Group" onPress={openEditGroup} variant="secondary" size="sm" />
+          <Button title="Edit Group" onPress={openEditGroup} variant="outline" size="sm" />
         )}
       </Card>
 
@@ -126,7 +126,7 @@ export default function MembersScreen() {
 
         <View style={{ flexDirection: 'row', gap: SPACING.sm }}>
           <Button title="Share Link" onPress={handleShare} size="sm" />
-          <Button title={showQR ? 'Hide QR' : 'Show QR'} onPress={() => setShowQR(!showQR)} variant="secondary" size="sm" />
+          <Button title={showQR ? 'Hide QR' : 'Show QR'} onPress={() => setShowQR(!showQR)} variant="outline" size="sm" />
         </View>
 
         {showQR && (
@@ -149,18 +149,19 @@ export default function MembersScreen() {
             const isMe = member.user_id === userId;
 
             return (
-              <View key={member.id} style={[styles.memberRow, { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.borderLight }]}>
+              <View key={member.id} style={[styles.memberRow, { borderBottomColor: colors.borderLight }]}>
                 <Avatar
                   name={member.profile?.full_name ?? '?'}
                   uri={member.profile?.avatar_url}
                   size={40}
+                  ring={isMe}
                 />
                 <View style={{ flex: 1 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                     <Text style={[styles.memberName, { color: colors.textPrimary }]}>
                       {member.profile?.full_name ?? 'Unknown'}
                     </Text>
-                    {isMe && <Badge label="You" variant="info" size="sm" />}
+                    {isMe && <Badge label="You" variant="accent" size="sm" />}
                     {member.user_id === group.created_by && <Badge label="Creator" variant="success" size="sm" />}
                     {member.status === 'INACTIVE' && <Badge label="Inactive" variant="neutral" size="sm" />}
                   </View>
@@ -168,15 +169,16 @@ export default function MembersScreen() {
                 </View>
                 {balance && (
                   <Text
-                    style={{
-                      fontSize: 15,
-                      fontWeight: '600',
-                      color: balance.netBalance > 0.01
-                        ? colors.accent
-                        : balance.netBalance < -0.01
-                          ? colors.danger
-                          : colors.textTertiary,
-                    }}
+                    style={[
+                      styles.memberBalance,
+                      {
+                        color: balance.netBalance > 0.01
+                          ? colors.success
+                          : balance.netBalance < -0.01
+                            ? colors.danger
+                            : colors.textTertiary,
+                      },
+                    ]}
                   >
                     {balance.netBalance > 0.01
                       ? `+${formatCurrency(balance.netBalance)}`
@@ -193,7 +195,7 @@ export default function MembersScreen() {
 
       {/* Actions */}
       <View style={{ marginTop: SPACING.xxl, gap: SPACING.md }}>
-        <Button title="Export as PDF" onPress={handleExport} variant="secondary" fullWidth />
+        <Button title="Export as PDF" onPress={handleExport} variant="outline" fullWidth />
         <Button title="Leave Group" onPress={handleLeave} variant="danger" fullWidth />
       </View>
 
@@ -221,17 +223,17 @@ export default function MembersScreen() {
             <Text style={[styles.iconLabel, { color: colors.textSecondary }]}>Group Icon</Text>
             <View style={styles.iconGrid}>
               {GROUP_ICON_NAMES.map((icon) => (
-                <TouchableOpacity
+                <Pressable
                   key={icon}
                   style={[
                     styles.iconCell,
                     { backgroundColor: colors.surface },
-                    editIcon === icon && { backgroundColor: colors.accentDim },
+                    editIcon === icon && { backgroundColor: colors.accentDim, borderColor: colors.accent, borderWidth: 2 },
                   ]}
-                  onPress={() => setEditIcon(icon)}
+                  onPress={() => { impact('light'); setEditIcon(icon); }}
                 >
                   <GroupIcon name={icon} size={24} color={editIcon === icon ? colors.accent : colors.textPrimary} />
-                </TouchableOpacity>
+                </Pressable>
               ))}
             </View>
           </View>
@@ -256,7 +258,7 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.md,
   },
   headerTitle: {
-    fontSize: 17,
+    ...TYPOGRAPHY.bodyLg,
     fontWeight: '700',
   },
   errorBox: {
@@ -265,11 +267,21 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.sm,
   },
   errorText: {
-    fontSize: 15,
+    ...TYPOGRAPHY.bodyMd,
     fontWeight: '500',
   },
+  groupIconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  groupName: {
+    ...TYPOGRAPHY.h2,
+  },
   sectionTitle: {
-    fontSize: 16,
+    ...TYPOGRAPHY.labelLg,
     fontWeight: '700',
   },
   codeRow: {
@@ -278,11 +290,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   codeLabel: {
-    fontSize: 13,
+    ...TYPOGRAPHY.caption,
   },
   code: {
-    fontSize: 18,
-    fontWeight: '700',
+    ...TYPOGRAPHY.h2,
     letterSpacing: 2,
   },
   qrContainer: {
@@ -291,23 +302,28 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.lg,
   },
   qrHint: {
-    fontSize: 13,
+    ...TYPOGRAPHY.caption,
   },
   memberRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     paddingVertical: SPACING.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   memberName: {
-    fontSize: 15,
+    ...TYPOGRAPHY.bodyMd,
     fontWeight: '600',
   },
   memberUsername: {
-    fontSize: 13,
+    ...TYPOGRAPHY.caption,
+  },
+  memberBalance: {
+    ...TYPOGRAPHY.bodyMd,
+    fontWeight: '600',
   },
   iconLabel: {
-    fontSize: 13,
+    ...TYPOGRAPHY.caption,
     fontWeight: '500',
   },
   iconGrid: {
@@ -318,7 +334,7 @@ const styles = StyleSheet.create({
   iconCell: {
     width: 48,
     height: 48,
-    borderRadius: 12,
+    borderRadius: RADIUS.lg,
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -1,10 +1,22 @@
-import React from 'react';
-import { View, Text, FlatList, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import React, { useRef, useEffect } from 'react';
+import { View, Text, FlatList, StyleSheet, Pressable, Platform, Animated } from 'react-native';
 import { Sparkles, Pencil, Trash2, ClipboardList, Zap } from 'lucide-react-native';
+
+function FadeInItem({ index, children }: { index: number; children: React.ReactNode }) {
+  const opacity = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(20)).current;
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(opacity, { toValue: 1, duration: 350, delay: index * 60, useNativeDriver: true }),
+      Animated.timing(translateY, { toValue: 0, duration: 350, delay: index * 60, useNativeDriver: true }),
+    ]).start();
+  }, []);
+  return <Animated.View style={{ opacity, transform: [{ translateY }] }}>{children}</Animated.View>;
+}
 import { Screen, Card, Badge, EmptyState, Button, BottomSheet, SkeletonActivityRow, Avatar } from '../../src/components/ui';
 import { useActivityFeed } from '../../src/hooks/use-notifications';
 import { useColors } from '../../src/hooks/use-colors';
-import { SPACING, formatCurrency } from '../../src/constants/theme';
+import { SPACING, TYPOGRAPHY, RADIUS, formatCurrency } from '../../src/constants/theme';
 import { formatDistanceToNow, format } from 'date-fns';
 
 const ACTION_ICONS: Record<string, React.ComponentType<{ size: number; color: string }>> = {
@@ -95,6 +107,65 @@ function getActivitySubtitle(item: ActivityItem): string {
   return parts.join(' · ');
 }
 
+function ActivityRow({ item, index, onPress }: { item: ActivityItem; index: number; onPress: () => void }) {
+  const colors = useColors();
+  const changes = getAuditChanges(item.action, item.entity_type, item.previous_state, item.new_state);
+  const badgeVariant = item.action === 'CREATE' ? 'success' : item.action === 'DELETE' ? 'danger' : 'warning';
+  const iconColor = item.action === 'CREATE' ? colors.accent : item.action === 'DELETE' ? colors.danger : colors.warning;
+
+  return (
+    <FadeInItem index={index}>
+      <Pressable
+        onPress={onPress}
+        style={[styles.notifRow, { backgroundColor: colors.surface2 }]}
+      >
+        <View style={{ flex: 1, gap: 6 }}>
+          <View style={styles.actorRow}>
+            <Avatar
+              name={item.modifier?.full_name ?? 'Someone'}
+              uri={(item as any).modifier?.avatar_url ?? undefined}
+              size={36}
+            />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.notifTitle, { color: colors.textPrimary }]}>{getActivityTitle(item)}</Text>
+              <Text style={[styles.notifBody, { color: colors.textSecondary }]}>{getActivitySubtitle(item)}</Text>
+            </View>
+          </View>
+
+          {item.group?.name && item.entity_type !== 'group' && (
+            <View style={[styles.groupPill, { backgroundColor: colors.accentDim }]}>
+              <Text style={[styles.groupPillText, { color: colors.accent }]}>{item.group.name}</Text>
+            </View>
+          )}
+
+          {item.action === 'UPDATE' && changes.length > 0 && (
+            <View style={[styles.changePreview, { backgroundColor: colors.surface, borderLeftColor: colors.warning }]}>
+              {changes.slice(0, 2).map((detail, i) => (
+                <Text key={i} style={[styles.changePreviewText, { color: colors.warning }]}>{detail}</Text>
+              ))}
+              {changes.length > 2 && (
+                <Text style={[styles.moreChanges, { color: colors.textTertiary }]}>+{changes.length - 2} more</Text>
+              )}
+            </View>
+          )}
+
+          <Text style={[styles.time, { color: colors.textTertiary }]}>
+            {format(new Date(item.created_at), 'dd MMM, hh:mm a')}
+            {' · '}
+            {formatDistanceToNow(new Date(item.created_at), { addSuffix: true })}
+          </Text>
+        </View>
+        <Badge
+          label={item.action}
+          variant={badgeVariant}
+          size="sm"
+          icon={React.createElement(ACTION_ICONS[item.action] ?? ClipboardList, { size: 12, color: iconColor })}
+        />
+      </Pressable>
+    </FadeInItem>
+  );
+}
+
 export default function ActivityScreen() {
   const colors = useColors();
   const { data: activities, isLoading, isRefetching, refetch } = useActivityFeed();
@@ -132,60 +203,13 @@ export default function ActivityScreen() {
             />
           )
         }
-        renderItem={({ item }) => {
-          const changes = getAuditChanges(item.action, item.entity_type, item.previous_state, item.new_state);
-          const badgeVariant = item.action === 'CREATE' ? 'success' : item.action === 'DELETE' ? 'danger' : 'warning';
-          const iconColor = item.action === 'CREATE' ? colors.accent : item.action === 'DELETE' ? colors.danger : colors.warning;
-
-          return (
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={() => setSelectedItem(item)}
-              style={[styles.notifRow, { backgroundColor: colors.surface2 }]}
-            >
-              <View style={{ flex: 1, gap: 6 }}>
-                <View style={styles.actorRow}>
-                  <Avatar
-                    name={item.modifier?.full_name ?? 'Someone'}
-                    uri={(item as any).modifier?.avatar_url ?? undefined}
-                    size={36}
-                  />
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.notifTitle, { color: colors.textPrimary }]}>{getActivityTitle(item)}</Text>
-                    <Text style={[styles.notifBody, { color: colors.textSecondary }]}>{getActivitySubtitle(item)}</Text>
-                  </View>
-                </View>
-
-                {item.group?.name && item.entity_type !== 'group' && (
-                  <Text style={[styles.groupLabel, { color: colors.accent }]}>in {item.group.name}</Text>
-                )}
-
-                {item.action === 'UPDATE' && changes.length > 0 && (
-                  <View style={[styles.changePreview, { borderLeftColor: colors.warning }]}>
-                    {changes.slice(0, 2).map((detail, i) => (
-                      <Text key={i} style={[styles.changePreviewText, { color: colors.warning }]}>{detail}</Text>
-                    ))}
-                    {changes.length > 2 && (
-                      <Text style={[styles.moreChanges, { color: colors.textTertiary }]}>+{changes.length - 2} more changes</Text>
-                    )}
-                  </View>
-                )}
-
-                <Text style={[styles.time, { color: colors.textTertiary }]}>
-                  {format(new Date(item.created_at), 'dd MMM, hh:mm a')}
-                  {' · '}
-                  {formatDistanceToNow(new Date(item.created_at), { addSuffix: true })}
-                </Text>
-              </View>
-              <Badge
-                label={item.action}
-                variant={badgeVariant}
-                size="sm"
-                icon={React.createElement(ACTION_ICONS[item.action] ?? ClipboardList, { size: 12, color: iconColor })}
-              />
-            </TouchableOpacity>
-          );
-        }}
+        renderItem={({ item, index }) => (
+          <ActivityRow
+            item={item}
+            index={index}
+            onPress={() => setSelectedItem(item)}
+          />
+        )}
       />
 
       <BottomSheet
@@ -202,11 +226,11 @@ export default function ActivityScreen() {
                 size={36}
               />
               <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 17, fontWeight: '600', color: colors.textPrimary }}>
+                <Text style={[{ ...TYPOGRAPHY.bodyLg, fontWeight: '600' }, { color: colors.textPrimary }]}>
                   {getActivityTitle(selectedItem)}
                 </Text>
                 {selectedItem.group?.name && (
-                  <Text style={{ fontSize: 13, color: colors.textTertiary }}>
+                  <Text style={[{ ...TYPOGRAPHY.caption }, { color: colors.textTertiary }]}>
                     in {selectedItem.group.name}
                   </Text>
                 )}
@@ -219,11 +243,11 @@ export default function ActivityScreen() {
               />
             </View>
 
-            <Text style={{ fontSize: 15, color: colors.textSecondary, lineHeight: 22 }}>
+            <Text style={[{ ...TYPOGRAPHY.bodyMd }, { color: colors.textSecondary, lineHeight: 22 }]}>
               {getActivitySubtitle(selectedItem)}
             </Text>
 
-            <Text style={{ fontSize: 13, color: colors.textTertiary }}>
+            <Text style={[{ ...TYPOGRAPHY.caption }, { color: colors.textTertiary }]}>
               {format(new Date(selectedItem.created_at), "EEEE, dd MMMM yyyy 'at' hh:mm:ss a")}
             </Text>
 
@@ -253,9 +277,7 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.lg,
   },
   title: {
-    fontSize: 34,
-    fontWeight: '700',
-    letterSpacing: 0.37,
+    ...TYPOGRAPHY.displayMd,
   },
   notifRow: {
     flexDirection: 'row',
@@ -263,6 +285,9 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingVertical: 14,
     paddingHorizontal: SPACING.lg,
+    borderRadius: RADIUS.lg,
+    marginHorizontal: 2,
+    marginVertical: 2,
   },
   actorRow: {
     flexDirection: 'row',
@@ -270,50 +295,55 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   notifTitle: {
-    fontSize: 15,
+    ...TYPOGRAPHY.bodyMd,
     fontWeight: '600',
   },
   notifBody: {
-    fontSize: 15,
+    ...TYPOGRAPHY.bodyMd,
     lineHeight: 20,
   },
-  groupLabel: {
-    fontSize: 13,
-    fontWeight: '500',
-    marginTop: 1,
+  groupPill: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  groupPillText: {
+    ...TYPOGRAPHY.caption,
+    fontWeight: '600',
   },
   changePreview: {
     marginTop: 4,
-    paddingLeft: 8,
+    paddingLeft: 10,
+    paddingVertical: 6,
+    paddingRight: 8,
     borderLeftWidth: 2,
-    gap: 1,
+    borderRadius: 6,
+    gap: 2,
   },
   changePreviewText: {
     fontSize: 13,
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
   moreChanges: {
-    fontSize: 13,
+    ...TYPOGRAPHY.caption,
     fontStyle: 'italic',
   },
   time: {
-    fontSize: 13,
+    ...TYPOGRAPHY.caption,
     marginTop: 4,
   },
   detailSection: {
-    borderRadius: 12,
+    borderRadius: RADIUS.lg,
     padding: SPACING.lg,
     gap: 6,
   },
   detailLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
+    ...TYPOGRAPHY.overline,
     marginBottom: 4,
   },
   detailText: {
-    fontSize: 15,
+    ...TYPOGRAPHY.bodyMd,
     lineHeight: 20,
   },
 });

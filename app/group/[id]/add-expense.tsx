@@ -1,16 +1,41 @@
 import React, { useState, useMemo } from 'react';
-import { View, Text, StyleSheet, Alert, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Alert, ScrollView, Pressable } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Screen, Button, Input, Card, Avatar, DatePicker } from '../../../src/components/ui';
 import { useGroup } from '../../../src/hooks/use-groups';
 import { useCreateExpense } from '../../../src/hooks/use-expenses';
 import { useAuthStore } from '../../../src/stores/auth-store';
 import { calculateEqualSplit, validateSplits } from '../../../src/lib/debt-engine';
-import { SPACING, formatCurrency } from '../../../src/constants/theme';
+import { SPACING, TYPOGRAPHY, RADIUS, formatCurrency } from '../../../src/constants/theme';
 import { useColors } from '../../../src/hooks/use-colors';
+import { impact } from '../../../src/utils/haptics';
 import type { SplitType } from '../../../src/types/database';
 
 type SplitEntry = { userId: string; name: string; amount: string };
+
+function MemberChip({ name, avatarUri, selected, onPress }: { name: string; avatarUri?: string; selected: boolean; onPress: () => void }) {
+  const colors = useColors();
+
+  return (
+    <Pressable
+      onPress={() => { impact('light'); onPress(); }}
+      style={[
+        styles.memberChip,
+        { backgroundColor: selected ? colors.accentDim : colors.surface },
+        selected && { borderColor: colors.accent, borderWidth: 1.5 },
+      ]}
+    >
+      <Avatar name={name} uri={avatarUri} size={24} ring={selected} />
+      <Text style={[
+        styles.memberChipText,
+        { color: selected ? colors.accent : colors.textSecondary },
+        selected && { fontWeight: '700' },
+      ]}>
+        {name}
+      </Text>
+    </Pressable>
+  );
+}
 
 export default function AddExpenseScreen() {
   const colors = useColors();
@@ -35,7 +60,6 @@ export default function AddExpenseScreen() {
 
   const [customSplits, setCustomSplits] = useState<SplitEntry[]>([]);
 
-  // Initialize custom splits when switching to custom mode
   const initCustomSplits = () => {
     setCustomSplits(
       activeMembers.map((m) => ({
@@ -92,6 +116,7 @@ export default function AddExpenseScreen() {
     }
 
     try {
+      impact('medium');
       await createExpense.mutateAsync({
         groupId: groupId!,
         title: title.trim(),
@@ -157,24 +182,13 @@ export default function AddExpenseScreen() {
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -4 }}>
             <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 4 }}>
               {activeMembers.map((m) => (
-                <TouchableOpacity
+                <MemberChip
                   key={m.user_id}
+                  name={m.user_id === userId ? 'You' : m.profile?.full_name?.split(' ')[0] ?? '?'}
+                  avatarUri={m.profile?.avatar_url}
+                  selected={payerId === m.user_id}
                   onPress={() => setPayerId(m.user_id)}
-                  style={[
-                    styles.memberChip,
-                    { backgroundColor: colors.surface },
-                    payerId === m.user_id && { backgroundColor: colors.accentDim },
-                  ]}
-                >
-                  <Avatar name={m.profile?.full_name ?? '?'} uri={m.profile?.avatar_url} size={24} />
-                  <Text style={[
-                    styles.memberChipText,
-                    { color: colors.textSecondary },
-                    payerId === m.user_id && { color: colors.accent },
-                  ]}>
-                    {m.user_id === userId ? 'You' : m.profile?.full_name?.split(' ')[0]}
-                  </Text>
-                </TouchableOpacity>
+                />
               ))}
             </View>
           </ScrollView>
@@ -185,33 +199,34 @@ export default function AddExpenseScreen() {
           <Text style={[styles.label, { color: colors.textSecondary }]}>Split Type</Text>
           <View style={styles.splitTypeRow}>
             {(['EQUAL', 'EXACT_AMOUNT', 'PERCENTAGE'] as SplitType[]).map((type) => (
-              <TouchableOpacity
+              <Pressable
                 key={type}
                 onPress={() => {
+                  impact('light');
                   setSplitType(type);
                   if (type !== 'EQUAL') initCustomSplits();
                 }}
                 style={[
                   styles.splitTypeBtn,
                   { backgroundColor: colors.surface },
-                  splitType === type && { backgroundColor: colors.accentDim },
+                  splitType === type && { backgroundColor: colors.accentDim, borderColor: colors.accent, borderWidth: 1.5 },
                 ]}
               >
                 <Text style={[
                   styles.splitTypeText,
                   { color: colors.textSecondary },
-                  splitType === type && { color: colors.accent },
+                  splitType === type && { color: colors.accent, fontWeight: '700' },
                 ]}>
                   {type === 'EQUAL' ? 'Equal' : type === 'EXACT_AMOUNT' ? 'Exact ₹' : 'Percentage'}
                 </Text>
-              </TouchableOpacity>
+              </Pressable>
             ))}
           </View>
         </View>
 
         {/* Equal split preview */}
         {splitType === 'EQUAL' && parsedAmount > 0 && (
-          <Card>
+          <Card variant="glass">
             <Text style={[styles.splitPreviewTitle, { color: colors.textSecondary }]}>Each person pays</Text>
             <Text style={[styles.splitPreviewAmount, { color: colors.textPrimary }]}>
               {formatCurrency(parsedAmount / activeMembers.length)}
@@ -224,7 +239,7 @@ export default function AddExpenseScreen() {
           <View style={{ gap: SPACING.sm }}>
             {remaining !== 0 && splitType === 'EXACT_AMOUNT' && (
               <Card style={{ backgroundColor: remaining > 0 ? colors.accentDim : colors.dangerDim }}>
-                <Text style={{ color: remaining > 0 ? colors.accent : colors.danger, fontSize: 13, fontWeight: '600' }}>
+                <Text style={{ color: remaining > 0 ? colors.accent : colors.danger, ...TYPOGRAPHY.caption, fontWeight: '600' }}>
                   {remaining > 0
                     ? `₹${remaining.toFixed(2)} remaining to allocate`
                     : `₹${Math.abs(remaining).toFixed(2)} over-allocated`}
@@ -276,7 +291,7 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.md,
   },
   headerTitle: {
-    fontSize: 17,
+    ...TYPOGRAPHY.bodyLg,
     fontWeight: '700',
   },
   form: {
@@ -284,19 +299,21 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   label: {
-    fontSize: 13,
+    ...TYPOGRAPHY.caption,
     fontWeight: '500',
   },
   memberChip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
     borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'transparent',
   },
   memberChipText: {
-    fontSize: 13,
+    ...TYPOGRAPHY.caption,
     fontWeight: '500',
   },
   splitTypeRow: {
@@ -306,20 +323,21 @@ const styles = StyleSheet.create({
   splitTypeBtn: {
     flex: 1,
     paddingVertical: 10,
-    borderRadius: 8,
+    borderRadius: RADIUS.md,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'transparent',
   },
   splitTypeText: {
-    fontSize: 13,
+    ...TYPOGRAPHY.caption,
     fontWeight: '500',
   },
   splitPreviewTitle: {
-    fontSize: 13,
+    ...TYPOGRAPHY.caption,
     textAlign: 'center',
   },
   splitPreviewAmount: {
-    fontSize: 24,
-    fontWeight: '800',
+    ...TYPOGRAPHY.monoLg,
     textAlign: 'center',
     marginTop: 4,
   },
@@ -330,7 +348,7 @@ const styles = StyleSheet.create({
   },
   customSplitName: {
     flex: 1,
-    fontSize: 15,
+    ...TYPOGRAPHY.bodyMd,
     fontWeight: '500',
   },
 });

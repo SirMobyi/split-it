@@ -3,8 +3,9 @@ import { View, Text, StyleSheet, Alert, Platform } from 'react-native';
 import { router } from 'expo-router';
 import { Screen, Button, Input } from '../../src/components/ui';
 import { useCreateGroup } from '../../src/hooks/use-groups';
-import { SPACING } from '../../src/constants/theme';
+import { SPACING, TYPOGRAPHY } from '../../src/constants/theme';
 import { useColors } from '../../src/hooks/use-colors';
+import { impact } from '../../src/utils/haptics';
 
 function showAlert(title: string, message: string) {
   if (Platform.OS === 'web') {
@@ -27,12 +28,10 @@ export default function CreateGroupScreen() {
       return;
     }
     try {
-      console.log('Creating group:', name.trim());
+      impact('medium');
       const group = await createGroup.mutateAsync({ name: name.trim() });
-      console.log('Group created:', group);
       router.replace(`/group/${group.id}`);
     } catch (e: any) {
-      console.error('Group creation error:', e);
       setError(e.message || 'Failed to create group');
     }
   };
@@ -75,7 +74,7 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.md,
   },
   title: {
-    fontSize: 17,
+    ...TYPOGRAPHY.bodyLg,
     fontWeight: '700',
   },
   form: {

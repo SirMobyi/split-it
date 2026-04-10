@@ -1,12 +1,15 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, Platform } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, Platform, Animated } from 'react-native';
 import { router } from 'expo-router';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
-import { Screen, Button, Input } from '../../src/components/ui';
+import { LinearGradient } from 'expo-linear-gradient';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Button, Input } from '../../src/components/ui';
+import { GradientBackground } from '../../src/components/ui';
 import { supabase } from '../../src/lib/supabase';
 import { useColors } from '../../src/hooks/use-colors';
-import { SPACING } from '../../src/constants/theme';
+import { SPACING, TYPOGRAPHY, GRADIENTS } from '../../src/constants/theme';
 
 const authRedirectUrl = Platform.OS === 'web'
   ? window.location.origin
@@ -22,6 +25,28 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+
+  // Entrance animations
+  const logoOpacity = useRef(new Animated.Value(0)).current;
+  const logoTranslateY = useRef(new Animated.Value(-20)).current;
+  const formOpacity = useRef(new Animated.Value(0)).current;
+  const formTranslateY = useRef(new Animated.Value(30)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(logoOpacity, { toValue: 1, duration: 500, useNativeDriver: true }),
+      Animated.timing(logoTranslateY, { toValue: 0, duration: 500, useNativeDriver: true }),
+    ]).start();
+    setTimeout(() => {
+      Animated.parallel([
+        Animated.timing(formOpacity, { toValue: 1, duration: 500, useNativeDriver: true }),
+        Animated.timing(formTranslateY, { toValue: 0, duration: 500, useNativeDriver: true }),
+      ]).start();
+    }, 200);
+  }, []);
+
+  const logoStyle = { opacity: logoOpacity, transform: [{ translateY: logoTranslateY }] };
+  const formStyle = { opacity: formOpacity, transform: [{ translateY: formTranslateY }] };
 
   const handlePhoneLogin = async () => {
     setError('');
@@ -97,104 +122,153 @@ export default function LoginScreen() {
   };
 
   return (
-    <Screen scrollable>
-      <View style={styles.hero}>
-        <Text style={[styles.logo, { color: colors.textPrimary }]}>Split It</Text>
-        <Text style={[styles.tagline, { color: colors.textSecondary }]}>
-          Split expenses effortlessly.{'\n'}Built for India.
-        </Text>
-      </View>
-
-      <View style={styles.form}>
-        {error ? (
-          <View style={[styles.messageBox, { backgroundColor: colors.dangerDim }]}>
-            <Text style={[styles.messageText, { color: colors.danger }]}>{error}</Text>
-          </View>
-        ) : null}
-
-        {message ? (
-          <View style={[styles.messageBox, { backgroundColor: colors.accentDim }]}>
-            <Text style={[styles.messageText, { color: colors.accent }]}>{message}</Text>
-          </View>
-        ) : null}
-
-        {mode === 'phone' ? (
-          <>
-            <Input
-              label="Phone Number"
-              prefix="+91"
-              placeholder="9876543210"
-              value={phone}
-              onChangeText={setPhone}
-              keyboardType="phone-pad"
-              maxLength={10}
-            />
-            <Button
-              title="Send OTP"
-              onPress={handlePhoneLogin}
-              loading={loading}
-              fullWidth
-            />
-          </>
-        ) : (
-          <>
-            <Input
-              label="Email"
-              placeholder="you@example.com"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-            <Button
-              title="Send OTP"
-              onPress={handleEmailLogin}
-              loading={loading}
-              fullWidth
-            />
-          </>
-        )}
-
-        <View style={styles.divider}>
-          <View style={[styles.line, { backgroundColor: colors.borderLight }]} />
-          <Text style={[styles.orText, { color: colors.textTertiary }]}>or</Text>
-          <View style={[styles.line, { backgroundColor: colors.borderLight }]} />
+    <GradientBackground variant="ambient">
+      <SafeAreaView style={styles.safe}>
+        {/* Decorative blurred circle behind logo */}
+        <View style={styles.decorCircleOuter}>
+          <LinearGradient
+            colors={[...GRADIENTS.lavender] as [string, string, ...string[]]}
+            style={styles.decorCircle}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          />
         </View>
 
-        <Button
-          title="Continue with Google"
-          onPress={handleGoogleLogin}
-          variant="secondary"
-          fullWidth
-        />
+        <Animated.View style={[styles.hero, logoStyle]}>
+          <View style={styles.logoRow}>
+            <Text style={[styles.logoLight, { color: colors.textPrimary }]}>Split</Text>
+            <Text style={[styles.logoBold, { color: colors.accent }]}>It</Text>
+          </View>
+          <Text style={[styles.tagline, { color: colors.textSecondary }]}>
+            Split expenses effortlessly.{'\n'}Built for India.
+          </Text>
+        </Animated.View>
 
-        <Button
-          title={mode === 'phone' ? 'Use email instead' : 'Use phone instead'}
-          onPress={() => setMode(mode === 'phone' ? 'email' : 'phone')}
-          variant="ghost"
-          fullWidth
-        />
-      </View>
-    </Screen>
+        <Animated.ScrollView
+          style={formStyle}
+          contentContainerStyle={styles.formContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.form}>
+            {error ? (
+              <View style={[styles.messageBox, { backgroundColor: colors.dangerDim }]}>
+                <Text style={[styles.messageText, { color: colors.danger }]}>{error}</Text>
+              </View>
+            ) : null}
+
+            {message ? (
+              <View style={[styles.messageBox, { backgroundColor: colors.accentDim }]}>
+                <Text style={[styles.messageText, { color: colors.accent }]}>{message}</Text>
+              </View>
+            ) : null}
+
+            {mode === 'phone' ? (
+              <>
+                <Input
+                  label="Phone Number"
+                  prefix="+91"
+                  placeholder="9876543210"
+                  value={phone}
+                  onChangeText={setPhone}
+                  keyboardType="phone-pad"
+                  maxLength={10}
+                />
+                <Button
+                  title="Send OTP"
+                  onPress={handlePhoneLogin}
+                  loading={loading}
+                  fullWidth
+                />
+              </>
+            ) : (
+              <>
+                <Input
+                  label="Email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
+                <Button
+                  title="Send OTP"
+                  onPress={handleEmailLogin}
+                  loading={loading}
+                  fullWidth
+                />
+              </>
+            )}
+
+            <View style={styles.divider}>
+              <View style={[styles.line, { backgroundColor: colors.borderLight }]} />
+              <Text style={[styles.orText, { color: colors.textTertiary }]}>or</Text>
+              <View style={[styles.line, { backgroundColor: colors.borderLight }]} />
+            </View>
+
+            <Button
+              title="Continue with Google"
+              onPress={handleGoogleLogin}
+              variant="outline"
+              fullWidth
+            />
+
+            <Button
+              title={mode === 'phone' ? 'Use email instead' : 'Use phone instead'}
+              onPress={() => setMode(mode === 'phone' ? 'email' : 'phone')}
+              variant="ghost"
+              fullWidth
+            />
+          </View>
+        </Animated.ScrollView>
+      </SafeAreaView>
+    </GradientBackground>
   );
 }
 
 const styles = StyleSheet.create({
+  safe: {
+    flex: 1,
+  },
+  decorCircleOuter: {
+    position: 'absolute',
+    top: 60,
+    alignSelf: 'center',
+    opacity: 0.25,
+  },
+  decorCircle: {
+    width: 128,
+    height: 128,
+    borderRadius: 64,
+  },
   hero: {
-    paddingTop: 100,
-    paddingBottom: 48,
+    paddingTop: 80,
+    paddingBottom: 40,
     alignItems: 'center',
   },
-  logo: {
-    fontSize: 34,
-    fontWeight: '700',
-    letterSpacing: -0.5,
+  logoRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+  },
+  logoLight: {
+    ...TYPOGRAPHY.displayLg,
+    fontWeight: '400',
+    letterSpacing: -1,
+  },
+  logoBold: {
+    ...TYPOGRAPHY.displayLg,
+    fontWeight: '800',
+    letterSpacing: -1,
   },
   tagline: {
-    fontSize: 17,
+    ...TYPOGRAPHY.bodyLg,
     textAlign: 'center',
     marginTop: 12,
     lineHeight: 26,
+  },
+  formContent: {
+    paddingHorizontal: SPACING.xl,
+    paddingBottom: SPACING.xxl,
   },
   form: {
     gap: 20,
@@ -210,14 +284,15 @@ const styles = StyleSheet.create({
     height: StyleSheet.hairlineWidth,
   },
   orText: {
-    fontSize: 15,
+    ...TYPOGRAPHY.bodyMd,
+    fontWeight: '500',
   },
   messageBox: {
     borderRadius: 12,
     padding: SPACING.lg,
   },
   messageText: {
-    fontSize: 15,
+    ...TYPOGRAPHY.bodyMd,
     fontWeight: '500',
   },
 });

@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Platform } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Screen, Button, Input, Card, Avatar, DatePicker } from '../../../src/components/ui';
 import { useGroup } from '../../../src/hooks/use-groups';
@@ -8,8 +8,9 @@ import { useAuthStore } from '../../../src/stores/auth-store';
 import { useToastStore } from '../../../src/stores/toast-store';
 import { validateSplits, calculateEqualSplit } from '../../../src/lib/debt-engine';
 import { supabase } from '../../../src/lib/supabase';
-import { SPACING, formatCurrency } from '../../../src/constants/theme';
+import { SPACING, TYPOGRAPHY, RADIUS, formatCurrency } from '../../../src/constants/theme';
 import { useColors } from '../../../src/hooks/use-colors';
+import { impact } from '../../../src/utils/haptics';
 import type { SplitType } from '../../../src/types/database';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -46,7 +47,6 @@ export default function EditExpenseScreen() {
     [group]
   );
 
-  // Populate form from existing expense
   useEffect(() => {
     if (expense) {
       setTitle(expense.title);
@@ -99,22 +99,15 @@ export default function EditExpenseScreen() {
     );
   };
 
-  /** Check if any form field differs from the original expense */
   const hasChanges = useMemo(() => {
     if (!expense) return false;
-
-    // Check basic fields
     if (title.trim() !== expense.title) return true;
     if (parsedAmount !== expense.amount) return true;
     if ((description.trim() || null) !== (expense.description ?? null)) return true;
     if (transactionDate !== expense.transaction_date) return true;
     if (splitType !== expense.split_type) return true;
-
-    // Check payer
     const origPayer = expense.splits?.find((s) => s.is_payer);
     if (payerId !== (origPayer?.user_id ?? '')) return true;
-
-    // Check custom splits (for non-EQUAL types)
     if (splitType !== 'EQUAL' && expense.split_type !== 'EQUAL') {
       for (const cs of customSplits) {
         const origSplit = expense.splits?.find((s) => s.user_id === cs.userId);
@@ -125,7 +118,6 @@ export default function EditExpenseScreen() {
         if ((parseFloat(cs.amount) || 0) !== origVal) return true;
       }
     }
-
     return false;
   }, [title, parsedAmount, description, transactionDate, splitType, payerId, customSplits, expense]);
 
@@ -135,7 +127,6 @@ export default function EditExpenseScreen() {
     if (parsedAmount <= 0) { setError('Amount must be positive'); return; }
     if (!payerId) { setError('Select who paid'); return; }
 
-    // Nothing changed — just go back without updating
     if (!hasChanges) {
       router.back();
       return;
@@ -166,7 +157,6 @@ export default function EditExpenseScreen() {
       }));
     }
 
-    // Snapshot previous state for undo
     const prevExpense = expense;
     const prevSplits = expense?.splits?.map((s) => ({
       userId: s.user_id,
@@ -175,6 +165,7 @@ export default function EditExpenseScreen() {
     }));
 
     try {
+      impact('medium');
       await updateExpense.mutateAsync({
         expenseId: expenseId!,
         groupId: groupId!,
@@ -188,7 +179,6 @@ export default function EditExpenseScreen() {
         newSplits,
       });
 
-      // Show undo toast, then navigate back
       showUndoToast(`"${title.trim()}" updated`, async () => {
         if (!prevExpense) return;
         await updateExpense.mutateAsync({
@@ -219,16 +209,15 @@ export default function EditExpenseScreen() {
     const deletedTitle = expense?.title ?? 'Expense';
 
     try {
+      impact('medium');
       await deleteExpense.mutateAsync({ expenseId: expenseId!, groupId: groupId! });
 
-      // Show undo toast — undo restores the soft-deleted expense
       showUndoToast(`"${deletedTitle}" deleted`, async () => {
         await supabase
           .from('expenses')
           .update({ is_deleted: false })
           .eq('id', expenseId!);
 
-        // Re-invalidate queries to reflect the restored expense
         queryClient.invalidateQueries({ queryKey: ['expenses', groupId] });
         queryClient.invalidateQueries({ queryKey: ['balances', groupId] });
         queryClient.invalidateQueries({ queryKey: ['activity'] });
@@ -293,24 +282,24 @@ export default function EditExpenseScreen() {
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <View style={{ flexDirection: 'row', gap: 8 }}>
               {activeMembers.map((m) => (
-                <TouchableOpacity
+                <Pressable
                   key={m.user_id}
-                  onPress={() => setPayerId(m.user_id)}
+                  onPress={() => { impact('light'); setPayerId(m.user_id); }}
                   style={[
                     styles.memberChip,
                     { backgroundColor: colors.surface },
-                    payerId === m.user_id && { backgroundColor: colors.accentDim },
+                    payerId === m.user_id && { backgroundColor: colors.accentDim, borderColor: colors.accent, borderWidth: 1.5 },
                   ]}
                 >
-                  <Avatar name={m.profile?.full_name ?? '?'} uri={m.profile?.avatar_url} size={24} />
+                  <Avatar name={m.profile?.full_name ?? '?'} uri={m.profile?.avatar_url} size={24} ring={payerId === m.user_id} />
                   <Text style={[
                     styles.memberChipText,
                     { color: colors.textSecondary },
-                    payerId === m.user_id && { color: colors.accent },
+                    payerId === m.user_id && { color: colors.accent, fontWeight: '700' },
                   ]}>
                     {m.user_id === userId ? 'You' : m.profile?.full_name?.split(' ')[0]}
                   </Text>
-                </TouchableOpacity>
+                </Pressable>
               ))}
             </View>
           </ScrollView>
@@ -321,33 +310,33 @@ export default function EditExpenseScreen() {
           <Text style={[styles.label, { color: colors.textSecondary }]}>Split Type</Text>
           <View style={styles.splitTypeRow}>
             {(['EQUAL', 'EXACT_AMOUNT', 'PERCENTAGE'] as SplitType[]).map((type) => (
-              <TouchableOpacity
+              <Pressable
                 key={type}
                 onPress={() => {
+                  impact('light');
                   setSplitType(type);
                   if (type !== 'EQUAL') initCustomSplits();
                 }}
                 style={[
                   styles.splitTypeBtn,
                   { backgroundColor: colors.surface },
-                  splitType === type && { backgroundColor: colors.accentDim },
+                  splitType === type && { backgroundColor: colors.accentDim, borderColor: colors.accent, borderWidth: 1.5 },
                 ]}
               >
                 <Text style={[
                   styles.splitTypeText,
                   { color: colors.textSecondary },
-                  splitType === type && { color: colors.accent },
+                  splitType === type && { color: colors.accent, fontWeight: '700' },
                 ]}>
                   {type === 'EQUAL' ? 'Equal' : type === 'EXACT_AMOUNT' ? 'Exact ₹' : 'Percentage'}
                 </Text>
-              </TouchableOpacity>
+              </Pressable>
             ))}
           </View>
         </View>
 
-        {/* Equal split preview */}
         {splitType === 'EQUAL' && parsedAmount > 0 && (
-          <Card>
+          <Card variant="glass">
             <Text style={[styles.splitPreviewTitle, { color: colors.textSecondary }]}>Each person pays</Text>
             <Text style={[styles.splitPreviewAmount, { color: colors.textPrimary }]}>
               {formatCurrency(parsedAmount / activeMembers.length)}
@@ -355,12 +344,11 @@ export default function EditExpenseScreen() {
           </Card>
         )}
 
-        {/* Custom splits */}
         {splitType !== 'EQUAL' && (
           <View style={{ gap: SPACING.sm }}>
             {remaining !== 0 && splitType === 'EXACT_AMOUNT' && (
               <Card style={{ backgroundColor: remaining > 0 ? colors.accentDim : colors.dangerDim }}>
-                <Text style={{ color: remaining > 0 ? colors.accent : colors.danger, fontSize: 13, fontWeight: '600' }}>
+                <Text style={{ color: remaining > 0 ? colors.accent : colors.danger, ...TYPOGRAPHY.caption, fontWeight: '600' }}>
                   {remaining > 0
                     ? `₹${remaining.toFixed(2)} remaining to allocate`
                     : `₹${Math.abs(remaining).toFixed(2)} over-allocated`}
@@ -409,7 +397,7 @@ export default function EditExpenseScreen() {
           size="sm"
         />
         {confirmDelete && (
-          <Text style={{ color: colors.danger, fontSize: 13, textAlign: 'center' }}>
+          <Text style={{ color: colors.danger, ...TYPOGRAPHY.caption, textAlign: 'center' }}>
             Tap again to permanently delete this expense
           </Text>
         )}
@@ -426,7 +414,7 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.md,
   },
   headerTitle: {
-    fontSize: 17,
+    ...TYPOGRAPHY.bodyLg,
     fontWeight: '700',
   },
   form: {
@@ -434,7 +422,7 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   label: {
-    fontSize: 13,
+    ...TYPOGRAPHY.caption,
     fontWeight: '500',
   },
   errorBox: {
@@ -443,19 +431,21 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.lg,
   },
   errorText: {
-    fontSize: 15,
+    ...TYPOGRAPHY.bodyMd,
     fontWeight: '500',
   },
   memberChip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
     borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'transparent',
   },
   memberChipText: {
-    fontSize: 13,
+    ...TYPOGRAPHY.caption,
     fontWeight: '500',
   },
   splitTypeRow: {
@@ -465,20 +455,21 @@ const styles = StyleSheet.create({
   splitTypeBtn: {
     flex: 1,
     paddingVertical: 10,
-    borderRadius: 8,
+    borderRadius: RADIUS.md,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'transparent',
   },
   splitTypeText: {
-    fontSize: 13,
+    ...TYPOGRAPHY.caption,
     fontWeight: '500',
   },
   splitPreviewTitle: {
-    fontSize: 13,
+    ...TYPOGRAPHY.caption,
     textAlign: 'center',
   },
   splitPreviewAmount: {
-    fontSize: 24,
-    fontWeight: '800',
+    ...TYPOGRAPHY.monoLg,
     textAlign: 'center',
     marginTop: 4,
   },
@@ -489,7 +480,7 @@ const styles = StyleSheet.create({
   },
   customSplitName: {
     flex: 1,
-    fontSize: 15,
+    ...TYPOGRAPHY.bodyMd,
     fontWeight: '500',
   },
 });

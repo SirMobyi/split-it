@@ -1,12 +1,13 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, Platform } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, Platform, Animated } from 'react-native';
 import { router } from 'expo-router';
-import { Screen, Button, Input } from '../../src/components/ui';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Screen, Button, Input, GradientBackground } from '../../src/components/ui';
 import { supabase } from '../../src/lib/supabase';
 import { restSelect, restUpsert } from '../../src/lib/supabase-rest';
 import { useAuthStore } from '../../src/stores/auth-store';
 import { useColors } from '../../src/hooks/use-colors';
-import { SPACING } from '../../src/constants/theme';
+import { SPACING, TYPOGRAPHY } from '../../src/constants/theme';
 
 export default function ProfileSetupScreen() {
   const colors = useColors();
@@ -17,6 +18,20 @@ export default function ProfileSetupScreen() {
   const [upiVpa, setUpiVpa] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  const formOpacity = useRef(new Animated.Value(0)).current;
+  const formTranslateY = useRef(new Animated.Value(20)).current;
+
+  useEffect(() => {
+    setTimeout(() => {
+      Animated.parallel([
+        Animated.timing(formOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
+        Animated.timing(formTranslateY, { toValue: 0, duration: 400, useNativeDriver: true }),
+      ]).start();
+    }, 100);
+  }, []);
+
+  const formStyle = { opacity: formOpacity, transform: [{ translateY: formTranslateY }] };
 
   const handleSave = async () => {
     setError('');
@@ -85,71 +100,75 @@ export default function ProfileSetupScreen() {
   };
 
   return (
-    <Screen scrollable>
-      <View style={styles.container}>
-        <Text style={[styles.title, { color: colors.textPrimary }]}>Set up your profile</Text>
-        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-          This is how your friends will see you in Split It
-        </Text>
+    <GradientBackground variant="ambient">
+      <SafeAreaView style={{ flex: 1 }}>
+        <Screen scrollable>
+          <Animated.View style={[styles.container, formStyle]}>
+            <Text style={[styles.title, { color: colors.textPrimary }]}>Set up your profile</Text>
+            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+              This is how your friends will see you in Split It
+            </Text>
 
-        {session?.user?.email && (
-          <Text style={[styles.loggedInAs, { color: colors.textTertiary }]}>
-            Logged in as: {session.user.email}
-          </Text>
-        )}
+            {session?.user?.email && (
+              <Text style={[styles.loggedInAs, { color: colors.textTertiary }]}>
+                Logged in as: {session.user.email}
+              </Text>
+            )}
 
-        <Button
-          title="Sign out (use a different account)"
-          onPress={async () => {
-            await supabase.auth.signOut();
-          }}
-          variant="ghost"
-          size="sm"
-          fullWidth
-        />
+            <Button
+              title="Sign out (use a different account)"
+              onPress={async () => {
+                await supabase.auth.signOut();
+              }}
+              variant="ghost"
+              size="sm"
+              fullWidth
+            />
 
-        {error ? (
-          <View style={[styles.errorBox, { backgroundColor: colors.dangerDim }]}>
-            <Text style={[styles.errorText, { color: colors.danger }]}>{error}</Text>
-          </View>
-        ) : null}
+            {error ? (
+              <View style={[styles.errorBox, { backgroundColor: colors.dangerDim }]}>
+                <Text style={[styles.errorText, { color: colors.danger }]}>{error}</Text>
+              </View>
+            ) : null}
 
-        <View style={styles.form}>
-          <Input
-            label="Full Name"
-            placeholder="Rahul Sharma"
-            value={fullName}
-            onChangeText={setFullName}
-            autoCapitalize="words"
-          />
-          <Input
-            label="Username"
-            placeholder="rahul_sharma"
-            value={username}
-            onChangeText={(t) => setUsername(t.replace(/[^a-zA-Z0-9_]/g, ''))}
-            autoCapitalize="none"
-          />
-          <Input
-            label="UPI ID (optional)"
-            placeholder="rahul@upi"
-            value={upiVpa}
-            onChangeText={setUpiVpa}
-            autoCapitalize="none"
-          />
-          <Text style={[styles.hint, { color: colors.textTertiary }]}>
-            Your UPI ID is used to receive payments from friends. You can add it later.
-          </Text>
+            <View style={styles.form}>
+              <Input
+                label="Full Name"
+                placeholder="Rahul Sharma"
+                value={fullName}
+                onChangeText={setFullName}
+                autoCapitalize="words"
+              />
+              <Input
+                label="Username"
+                placeholder="rahul_sharma"
+                value={username}
+                onChangeText={(t) => setUsername(t.replace(/[^a-zA-Z0-9_]/g, ''))}
+                autoCapitalize="none"
+              />
+              <Input
+                label="UPI ID (optional)"
+                placeholder="rahul@upi"
+                value={upiVpa}
+                onChangeText={setUpiVpa}
+                autoCapitalize="none"
+              />
+              <Text style={[styles.hint, { color: colors.textTertiary }]}>
+                Your UPI ID is used to receive payments from friends. You can add it later.
+              </Text>
 
-          <Button
-            title="Get Started"
-            onPress={handleSave}
-            loading={loading}
-            fullWidth
-            size="lg"
-          />
-        </View>
-      </View>
-    </Screen>
+              <Button
+                title="Get Started"
+                onPress={handleSave}
+                loading={loading}
+                fullWidth
+                size="lg"
+              />
+            </View>
+          </Animated.View>
+        </Screen>
+      </SafeAreaView>
+    </GradientBackground>
   );
 }
 
@@ -158,12 +177,11 @@ const styles = StyleSheet.create({
     paddingTop: 60,
   },
   title: {
-    fontSize: 28,
-    fontWeight: '700',
+    ...TYPOGRAPHY.displayMd,
     marginBottom: SPACING.sm,
   },
   subtitle: {
-    fontSize: 17,
+    ...TYPOGRAPHY.bodyLg,
     lineHeight: 24,
     marginBottom: SPACING.xxl,
   },
@@ -171,7 +189,7 @@ const styles = StyleSheet.create({
     gap: SPACING.lg,
   },
   hint: {
-    fontSize: 13,
+    ...TYPOGRAPHY.caption,
     marginTop: -8,
   },
   errorBox: {
@@ -180,11 +198,11 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.lg,
   },
   errorText: {
-    fontSize: 15,
+    ...TYPOGRAPHY.bodyMd,
     fontWeight: '500',
   },
   loggedInAs: {
-    fontSize: 13,
+    ...TYPOGRAPHY.caption,
     marginBottom: SPACING.sm,
   },
 });

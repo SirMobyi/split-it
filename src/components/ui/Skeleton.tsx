@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Animated, StyleSheet } from 'react-native';
-import { SPACING, RADIUS, SHADOWS } from '../../constants/theme';
-import { useColors } from '../../hooks/use-colors';
+import { View, StyleSheet, Animated } from 'react-native';
+import { SPACING, RADIUS } from '../../constants/theme';
+import { useColors, useShadows } from '../../hooks/use-colors';
 
 interface SkeletonBoxProps {
   width?: number | string;
@@ -15,15 +15,13 @@ function SkeletonBox({ width = '100%', height = 16, borderRadius = RADIUS.md, st
   const opacity = useRef(new Animated.Value(0.3)).current;
 
   useEffect(() => {
-    const animation = Animated.loop(
+    Animated.loop(
       Animated.sequence([
         Animated.timing(opacity, { toValue: 0.7, duration: 800, useNativeDriver: true }),
         Animated.timing(opacity, { toValue: 0.3, duration: 800, useNativeDriver: true }),
       ])
-    );
-    animation.start();
-    return () => animation.stop();
-  }, [opacity]);
+    ).start();
+  }, []);
 
   return (
     <Animated.View
@@ -37,8 +35,9 @@ function SkeletonBox({ width = '100%', height = 16, borderRadius = RADIUS.md, st
 
 export function SkeletonCard() {
   const colors = useColors();
+  const shadows = useShadows();
   return (
-    <View style={[styles.card, { backgroundColor: colors.surface2, ...SHADOWS.card }]}>
+    <View style={[styles.card, { backgroundColor: colors.surface2, ...shadows.card }]}>
       <View style={{ flex: 1, gap: 10 }}>
         <SkeletonBox width="60%" height={18} />
         <View style={{ flexDirection: 'row', gap: 4 }}>
@@ -54,8 +53,9 @@ export function SkeletonCard() {
 
 export function SkeletonBalanceCard() {
   const colors = useColors();
+  const shadows = useShadows();
   return (
-    <View style={[styles.card, { backgroundColor: colors.surface2, ...SHADOWS.cardElevated, gap: SPACING.lg }]}>
+    <View style={[styles.card, { backgroundColor: colors.surface2, ...shadows.cardElevated, gap: SPACING.lg }]}>
       <SkeletonBox width="45%" height={24} />
       <View style={{ flexDirection: 'row', gap: SPACING.lg }}>
         <View style={{ flex: 1, alignItems: 'center', gap: 6 }}>

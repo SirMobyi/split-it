@@ -1,7 +1,8 @@
-import React from 'react';
-import { View, Modal, TouchableOpacity, Text, StyleSheet, Dimensions } from 'react-native';
-import { RADIUS, SPACING, SHADOWS } from '../../constants/theme';
-import { useColors } from '../../hooks/use-colors';
+import React, { useEffect, useRef } from 'react';
+import { View, Modal, Pressable, Text, StyleSheet, Dimensions, Animated } from 'react-native';
+import { RADIUS, SPACING, TYPOGRAPHY } from '../../constants/theme';
+import { useColors, useShadows, useIsDark } from '../../hooks/use-colors';
+import { impact } from '../../utils/haptics';
 
 interface BottomSheetProps {
   visible: boolean;
@@ -11,63 +12,93 @@ interface BottomSheetProps {
   children: React.ReactNode;
 }
 
+const SCREEN_HEIGHT = Dimensions.get('window').height;
+
 export function BottomSheet({ visible, onClose, title, showDone = true, children }: BottomSheetProps) {
   const colors = useColors();
+  const shadows = useShadows();
+  const isDark = useIsDark();
+
+  const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+  const backdropOpacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (visible) {
+      impact('medium');
+      Animated.spring(translateY, { toValue: 0, damping: 20, stiffness: 200, mass: 0.8, useNativeDriver: true }).start();
+      Animated.timing(backdropOpacity, { toValue: 1, duration: 300, useNativeDriver: true }).start();
+    } else {
+      Animated.spring(translateY, { toValue: SCREEN_HEIGHT, damping: 25, stiffness: 300, useNativeDriver: true }).start();
+      Animated.timing(backdropOpacity, { toValue: 0, duration: 200, useNativeDriver: true }).start();
+    }
+  }, [visible]);
 
   return (
     <Modal
       visible={visible}
       transparent
-      animationType="slide"
+      animationType="none"
       onRequestClose={onClose}
+      statusBarTranslucent
     >
-      <TouchableOpacity
-        style={styles.overlay}
-        activeOpacity={1}
-        onPress={onClose}
-      >
-        <TouchableOpacity
-          activeOpacity={1}
-          style={[styles.sheet, {
-            backgroundColor: colors.surface2,
-            ...SHADOWS.bottomSheet,
-          }]}
+      <View style={styles.container}>
+        <Animated.View style={[styles.backdrop, { opacity: backdropOpacity }]}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        </Animated.View>
+
+        <Animated.View
+          style={[
+            { transform: [{ translateY }] },
+            styles.sheet,
+            {
+              backgroundColor: isDark ? 'rgba(24, 20, 48, 0.95)' : 'rgba(250, 250, 255, 0.97)',
+              borderColor: colors.borderLight,
+              ...shadows.bottomSheet,
+            },
+          ]}
         >
           <View style={[styles.handle, { backgroundColor: colors.border }]} />
+
           {title && (
             <View style={styles.header}>
               <Text style={[styles.title, { color: colors.textPrimary }]}>{title}</Text>
               {showDone && (
-                <TouchableOpacity onPress={onClose}>
+                <Pressable onPress={onClose} hitSlop={10}>
                   <Text style={[styles.close, { color: colors.accent }]}>Done</Text>
-                </TouchableOpacity>
+                </Pressable>
               )}
             </View>
           )}
+
           <View style={styles.content}>{children}</View>
-        </TouchableOpacity>
-      </TouchableOpacity>
+        </Animated.View>
+      </View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay: {
+  container: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.3)',
     justifyContent: 'flex-end',
   },
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+  },
   sheet: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: Dimensions.get('window').height * 0.85,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderWidth: 1,
+    borderBottomWidth: 0,
+    maxHeight: SCREEN_HEIGHT * 0.85,
   },
   handle: {
     width: 36,
     height: 4,
     borderRadius: 2,
     alignSelf: 'center',
-    marginTop: 8,
+    marginTop: 10,
   },
   header: {
     flexDirection: 'row',
@@ -78,12 +109,10 @@ const styles = StyleSheet.create({
     paddingBottom: SPACING.md,
   },
   title: {
-    fontSize: 17,
-    fontWeight: '600',
+    ...TYPOGRAPHY.labelLg,
   },
   close: {
-    fontSize: 17,
-    fontWeight: '600',
+    ...TYPOGRAPHY.labelLg,
   },
   content: {
     paddingHorizontal: SPACING.lg,

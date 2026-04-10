@@ -1,17 +1,45 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import React, { useState, useRef } from 'react';
+import { View, Text, StyleSheet, Pressable, Platform, Animated } from 'react-native';
 import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import { Camera, Loader, ChevronRight } from 'lucide-react-native';
+import { Camera, Loader, ChevronRight, Settings, LogOut, Sun, Moon } from 'lucide-react-native';
 import { useQueryClient } from '@tanstack/react-query';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Screen, Button, Input, Avatar, ImageCropper, BottomSheet } from '../../src/components/ui';
 import { useThemeStore } from '../../src/stores/theme-store';
-import { Settings } from 'lucide-react-native';
 import { useAuthStore } from '../../src/stores/auth-store';
 import { useColors } from '../../src/hooks/use-colors';
 import { supabase } from '../../src/lib/supabase';
 import { restUpdate } from '../../src/lib/supabase-rest';
-import { SPACING, RADIUS } from '../../src/constants/theme';
+import { SPACING, RADIUS, TYPOGRAPHY, GRADIENTS } from '../../src/constants/theme';
+import { impact } from '../../src/utils/haptics';
+
+function ThemeSegment() {
+  const colors = useColors();
+  const theme = useThemeStore((s) => s.theme);
+  const setTheme = useThemeStore((s) => s.setTheme);
+  const indicatorX = useRef(new Animated.Value(theme === 'light' ? 0 : 72)).current;
+
+  const handleSwitch = (t: 'light' | 'dark') => {
+    impact('light');
+    Animated.spring(indicatorX, { toValue: t === 'light' ? 0 : 72, damping: 18, stiffness: 200, useNativeDriver: true }).start();
+    setTheme(t);
+  };
+
+  return (
+    <View style={[styles.segmentTrack, { backgroundColor: colors.surface3 }]}>
+      <Animated.View style={[styles.segmentIndicator, { backgroundColor: colors.surface2 }, { transform: [{ translateX: indicatorX }] }]} />
+      <Pressable style={styles.segmentButton} onPress={() => handleSwitch('light')}>
+        <Sun size={16} color={theme === 'light' ? colors.accent : colors.textTertiary} />
+        <Text style={[styles.segmentLabel, { color: theme === 'light' ? colors.accent : colors.textTertiary }]}>Light</Text>
+      </Pressable>
+      <Pressable style={styles.segmentButton} onPress={() => handleSwitch('dark')}>
+        <Moon size={16} color={theme === 'dark' ? colors.accent : colors.textTertiary} />
+        <Text style={[styles.segmentLabel, { color: theme === 'dark' ? colors.accent : colors.textTertiary }]}>Dark</Text>
+      </Pressable>
+    </View>
+  );
+}
 
 export default function ProfileScreen() {
   const { profile, setProfile, reset } = useAuthStore();
@@ -26,8 +54,6 @@ export default function ProfileScreen() {
   const [showCropper, setShowCropper] = useState(false);
   const [selectedImageUri, setSelectedImageUri] = useState<string>('');
   const [showSettings, setShowSettings] = useState(false);
-  const theme = useThemeStore((s) => s.theme);
-  const setTheme = useThemeStore((s) => s.setTheme);
 
   const handleSave = async () => {
     setError('');
@@ -74,7 +100,7 @@ export default function ProfileScreen() {
         allowsEditing: Platform.OS !== 'web',
         aspect: [1, 1],
         quality: 0.7,
-        base64: Platform.OS === 'web',
+        base64: true,
       });
       if (result.canceled || !result.assets?.[0]) return;
 
@@ -90,7 +116,7 @@ export default function ProfileScreen() {
         setShowCropper(true);
       } else {
         if (!pickedUri) throw new Error('Unable to read selected image');
-        await uploadAvatar(pickedUri);
+        await uploadAvatar(pickedUri, asset.base64 ?? undefined);
       }
     } catch (e: any) {
       setError(e.message || 'Failed to select image');
@@ -103,42 +129,59 @@ export default function ProfileScreen() {
     await uploadAvatar(croppedImageUri);
   };
 
-  const uploadAvatar = async (imageUri: string) => {
+  const uploadAvatar = async (imageUri: string, base64Data?: string) => {
     setUploadingAvatar(true);
     try {
       if (!imageUri) throw new Error('Invalid image selected');
 
-      const response = await fetch(imageUri);
-      const blob = await response.blob();
-      const mimeType = blob.type || 'image/jpeg';
-      const extFromMime = mimeType.split('/')[1] || 'jpg';
-      const extFromUri = imageUri.split('.').pop()?.split('?')[0]?.toLowerCase();
-      const ext = extFromUri && extFromUri.length <= 4 ? extFromUri : extFromMime;
-      const fileName = `${profile!.id}/avatar.${ext}`;
+      const fileName = `${profile!.id}/avatar.jpg`;
 
-      const uploadResult = await supabase.storage
-        .from('avatars')
-        .upload(fileName, blob, { cacheControl: '3600', upsert: true, contentType: mimeType });
+      let uploadResult;
+      if (base64Data) {
+        // Convert base64 → ArrayBuffer (reliable on iOS, no fetch needed)
+        const binaryStr = atob(base64Data);
+        const bytes = new Uint8Array(binaryStr.length);
+        for (let i = 0; i < binaryStr.length; i++) {
+          bytes[i] = binaryStr.charCodeAt(i);
+        }
+        uploadResult = await supabase.storage
+          .from('avatars')
+          .upload(fileName, bytes.buffer, { cacheControl: '3600', upsert: true, contentType: 'image/jpeg' });
+      } else {
+        // Web fallback
+        const response = await fetch(imageUri);
+        const blob = await response.blob();
+        uploadResult = await supabase.storage
+          .from('avatars')
+          .upload(fileName, blob, { cacheControl: '3600', upsert: true, contentType: 'image/jpeg' });
+      }
 
-      if (uploadResult.error) throw uploadResult.error;
-
-      if (profile) setProfile({ ...profile, avatar_url: imageUri });
+      if (uploadResult.error) {
+        console.error('[avatar] upload failed:', uploadResult.error);
+        throw uploadResult.error;
+      }
+      console.log('[avatar] upload ok, file:', fileName);
 
       const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(fileName);
       if (!urlData?.publicUrl) throw new Error('Failed to get image URL');
 
       const avatarUrl = `${urlData.publicUrl}?t=${Date.now()}`;
+      console.log('[avatar] public url:', avatarUrl);
 
-      let updateResult;
-      if (Platform.OS === 'web') {
-        updateResult = await restUpdate('profiles', { avatar_url: avatarUrl }, { eq: { id: profile!.id }, select: '*', single: true });
-        if (updateResult.error) throw new Error(updateResult.error.message);
-      } else {
-        updateResult = await supabase.from('profiles').update({ avatar_url: avatarUrl }).eq('id', profile!.id).select().single();
-        if (updateResult.error) throw updateResult.error;
+      const { data: updatedProfile, error: updateErr } = await supabase
+        .from('profiles')
+        .update({ avatar_url: avatarUrl })
+        .eq('id', profile!.id)
+        .select()
+        .single();
+
+      if (updateErr) {
+        console.error('[avatar] profile update failed:', updateErr);
+        throw updateErr;
       }
 
-      setProfile(updateResult.data);
+      console.log('[avatar] profile updated:', updatedProfile?.avatar_url);
+      setProfile(updatedProfile ?? { ...profile!, avatar_url: avatarUrl });
       queryClient.invalidateQueries({ queryKey: ['groups'] });
       queryClient.invalidateQueries({ queryKey: ['group'] });
     } catch (e: any) {
@@ -149,6 +192,7 @@ export default function ProfileScreen() {
   };
 
   const handleLogout = async () => {
+    impact('medium');
     await supabase.auth.signOut();
     reset();
     router.replace('/(auth)/login');
@@ -158,28 +202,42 @@ export default function ProfileScreen() {
 
   return (
     <Screen scrollable>
-      <View style={[styles.header, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}> 
-        <Text style={[styles.title, { color: colors.textPrimary }]}>Profile</Text>
-        <TouchableOpacity onPress={() => setShowSettings(true)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <Settings size={20} color={colors.textPrimary} />
-        </TouchableOpacity>
-      </View>
+      {/* Gradient Hero */}
+      <View style={styles.heroContainer}>
+        <LinearGradient
+          colors={[...GRADIENTS.lavender] as [string, string, ...string[]]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.heroGradient}
+        />
+        <View style={styles.headerRow}>
+          <Text style={[styles.title, { color: colors.textPrimary }]}>Profile</Text>
+          <Pressable onPress={() => setShowSettings(true)} hitSlop={10}>
+            <Settings size={22} color={colors.textPrimary} />
+          </Pressable>
+        </View>
 
-      <View style={styles.avatarSection}>
-        <TouchableOpacity onPress={handlePickAvatar} disabled={uploadingAvatar}>
-          <Avatar name={profile.full_name} uri={profile.avatar_url} size={96} />
-          <View style={[styles.cameraOverlay, { backgroundColor: colors.accent }]}>
-            {uploadingAvatar
-              ? <Loader size={14} color="#FFFFFF" />
-              : <Camera size={14} color="#FFFFFF" />
-            }
-          </View>
-        </TouchableOpacity>
-        <Text style={[styles.name, { color: colors.textPrimary }]}>{profile.full_name}</Text>
-        <Text style={[styles.username, { color: colors.textSecondary }]}>@{profile.username}</Text>
-        <Text style={[styles.changePhotoHint, { color: colors.textTertiary }]}>
-          {uploadingAvatar ? 'Uploading...' : 'Tap photo to change'}
-        </Text>
+        <View style={styles.avatarSection}>
+          <Pressable onPress={handlePickAvatar} disabled={uploadingAvatar}>
+            <Avatar name={profile.full_name} uri={profile.avatar_url} size={112} ring />
+            <LinearGradient
+              colors={[...GRADIENTS.primary] as [string, string, ...string[]]}
+              style={[styles.cameraOverlay, { borderColor: colors.background }]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              {uploadingAvatar
+                ? <Loader size={16} color="#FFFFFF" />
+                : <Camera size={16} color="#FFFFFF" />
+              }
+            </LinearGradient>
+          </Pressable>
+          <Text style={[styles.name, { color: colors.textPrimary }]}>{profile.full_name}</Text>
+          <Text style={[styles.username, { color: colors.textSecondary }]}>@{profile.username}</Text>
+          <Text style={[styles.changePhotoHint, { color: colors.textTertiary }]}>
+            {uploadingAvatar ? 'Uploading...' : 'Tap photo to change'}
+          </Text>
+        </View>
       </View>
 
       {error ? (
@@ -209,17 +267,30 @@ export default function ProfileScreen() {
             <Text style={[styles.label, { color: colors.textSecondary }]}>UPI ID</Text>
             <Text style={[styles.value, { color: colors.textPrimary }]}>{profile.upi_vpa ?? 'Not set'}</Text>
           </View>
-          <TouchableOpacity style={styles.groupedRow} onPress={() => setEditing(true)}>
+          <Pressable style={styles.groupedRow} onPress={() => setEditing(true)}>
             <Text style={[styles.label, { color: colors.accent }]}>Edit Profile</Text>
             <ChevronRight size={18} color={colors.textTertiary} />
-          </TouchableOpacity>
+          </Pressable>
         </View>
       )}
 
-      <View style={{ marginTop: SPACING.xxxl, alignItems: 'center' }}>
-        <TouchableOpacity onPress={handleLogout} style={{ paddingVertical: SPACING.md }}>
-          <Text style={{ fontSize: 17, color: colors.danger, fontWeight: '500' }}>Sign Out</Text>
-        </TouchableOpacity>
+      {/* Theme section */}
+      <View style={[styles.groupedSection, { backgroundColor: colors.surface2, marginTop: SPACING.lg }]}>
+        <View style={[styles.groupedRow, { borderBottomWidth: 0 }]}>
+          <Text style={[styles.label, { color: colors.textPrimary, fontWeight: '600' }]}>Appearance</Text>
+          <ThemeSegment />
+        </View>
+      </View>
+
+      {/* Sign out */}
+      <View style={[styles.groupedSection, { backgroundColor: colors.surface2, marginTop: SPACING.lg }]}>
+        <Pressable
+          style={[styles.groupedRow, { borderBottomWidth: 0, justifyContent: 'center', gap: 8 }]}
+          onPress={handleLogout}
+        >
+          <LogOut size={18} color={colors.danger} />
+          <Text style={[styles.label, { color: colors.danger, fontWeight: '600' }]}>Sign Out</Text>
+        </Pressable>
       </View>
 
       <ImageCropper
@@ -233,17 +304,12 @@ export default function ProfileScreen() {
       />
 
       <BottomSheet visible={showSettings} onClose={() => setShowSettings(false)} title="Settings">
-        <View style={{ padding: 16, gap: 12 }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <View>
-              <Text style={{ fontSize: 15, fontWeight: '600', color: colors.textPrimary }}>Theme</Text>
-              <Text style={{ fontSize: 13, color: colors.textTertiary }}>Choose Light or Dark</Text>
-            </View>
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              <Button title="Light" onPress={() => { setTheme('light'); setShowSettings(false); }} variant={theme === 'light' ? 'primary' : 'secondary'} />
-              <Button title="Dark" onPress={() => { setTheme('dark'); setShowSettings(false); }} variant={theme === 'dark' ? 'primary' : 'secondary'} />
-            </View>
+        <View style={{ padding: SPACING.lg, gap: SPACING.lg }}>
+          <View style={{ gap: 4 }}>
+            <Text style={[{ ...TYPOGRAPHY.bodyLg, fontWeight: '600' }, { color: colors.textPrimary }]}>Theme</Text>
+            <Text style={[{ ...TYPOGRAPHY.bodySm }, { color: colors.textTertiary }]}>Choose your preferred appearance</Text>
           </View>
+          <ThemeSegment />
         </View>
       </BottomSheet>
     </Screen>
@@ -251,41 +317,53 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: {
+  heroContainer: {
+    marginBottom: SPACING.lg,
+  },
+  heroGradient: {
+    position: 'absolute',
+    top: -100,
+    left: -20,
+    right: -20,
+    height: 280,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+    opacity: 0.4,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingVertical: SPACING.lg,
   },
   title: {
-    fontSize: 34,
-    fontWeight: '700',
-    letterSpacing: 0.37,
+    ...TYPOGRAPHY.displayMd,
   },
   avatarSection: {
     alignItems: 'center',
     gap: 8,
-    marginBottom: SPACING.xxl,
+    marginBottom: SPACING.lg,
   },
   cameraOverlay: {
     position: 'absolute',
-    bottom: 0,
-    right: 0,
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    bottom: 2,
+    right: 2,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
+    borderWidth: 3,
   },
   changePhotoHint: {
-    fontSize: 13,
+    ...TYPOGRAPHY.caption,
     marginTop: 2,
   },
   name: {
-    fontSize: 22,
-    fontWeight: '700',
+    ...TYPOGRAPHY.h2,
   },
   username: {
-    fontSize: 15,
+    ...TYPOGRAPHY.bodyMd,
   },
   errorBox: {
     borderRadius: 12,
@@ -293,15 +371,15 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.lg,
   },
   errorText: {
-    fontSize: 15,
+    ...TYPOGRAPHY.bodyMd,
     fontWeight: '500',
   },
   groupedSection: {
     borderRadius: RADIUS.xl,
     overflow: 'hidden',
-    shadowColor: '#000',
+    shadowColor: '#8B5CF6',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.06,
     shadowRadius: 8,
     elevation: 2,
   },
@@ -311,19 +389,50 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 14,
     paddingHorizontal: SPACING.lg,
-    minHeight: 44,
+    minHeight: 48,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   label: {
-    fontSize: 15,
+    ...TYPOGRAPHY.bodyMd,
   },
   value: {
-    fontSize: 15,
+    ...TYPOGRAPHY.bodyMd,
     fontWeight: '500',
   },
   editActions: {
     flexDirection: 'row',
     gap: SPACING.sm,
     justifyContent: 'flex-end',
+  },
+  segmentTrack: {
+    flexDirection: 'row',
+    borderRadius: 10,
+    padding: 3,
+    position: 'relative',
+  },
+  segmentIndicator: {
+    position: 'absolute',
+    top: 3,
+    left: 3,
+    width: 72,
+    height: 32,
+    borderRadius: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  segmentButton: {
+    width: 72,
+    height: 32,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  segmentLabel: {
+    ...TYPOGRAPHY.labelSm,
+    fontWeight: '600',
   },
 });
