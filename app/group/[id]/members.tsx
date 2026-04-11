@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Share, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Share, Pressable, Platform } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import QRCode from 'react-native-qrcode-svg';
 import { Screen, Button, Card, Avatar, Badge, Input, BottomSheet } from '../../../src/components/ui';
@@ -42,6 +42,11 @@ export default function MembersScreen() {
     await Share.share({
       message: `Join my group "${group.name}" on Split-It!\n\nInvite code: ${group.invite_code}\n\nOr tap: ${inviteLink}`,
     });
+  };
+
+  const handleCopy = () => {
+    impact('light');
+    Share.share({ message: group.invite_code });
   };
 
   const handleLeave = () => {
@@ -95,7 +100,7 @@ export default function MembersScreen() {
     <Screen scrollable>
       <View style={styles.header}>
         <Button title="Close" onPress={() => router.push(`/group/${groupId}`)} variant="ghost" size="sm" />
-        <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Members</Text>
+        <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Group Info</Text>
         <View style={{ width: 60 }} />
       </View>
 
@@ -117,16 +122,25 @@ export default function MembersScreen() {
       </Card>
 
       {/* Invite Section */}
-      <Card style={{ gap: SPACING.md, marginTop: SPACING.lg }}>
+      <Card style={{ gap: SPACING.lg, marginTop: SPACING.lg }}>
         <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Invite Friends</Text>
-        <View style={styles.codeRow}>
-          <Text style={[styles.codeLabel, { color: colors.textSecondary }]}>Invite Code</Text>
-          <Text style={[styles.code, { color: colors.accent }]}>{group.invite_code}</Text>
-        </View>
+
+        <Pressable
+          onPress={handleCopy}
+          style={[styles.codeBox, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}
+        >
+          <Text style={[styles.codeBoxLabel, { color: colors.textTertiary }]}>INVITE CODE</Text>
+          <Text style={[styles.codeText, { color: colors.accent }]}>{group.invite_code}</Text>
+          <Text style={[styles.codeHint, { color: colors.textTertiary }]}>Tap to share code</Text>
+        </Pressable>
 
         <View style={{ flexDirection: 'row', gap: SPACING.sm }}>
-          <Button title="Share Link" onPress={handleShare} size="sm" />
-          <Button title={showQR ? 'Hide QR' : 'Show QR'} onPress={() => setShowQR(!showQR)} variant="outline" size="sm" />
+          <View style={{ flex: 1 }}>
+            <Button title="Share Link" onPress={handleShare} size="sm" fullWidth />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Button title={showQR ? 'Hide QR' : 'Show QR'} onPress={() => setShowQR(!showQR)} variant="outline" size="sm" fullWidth />
+          </View>
         </View>
 
         {showQR && (
@@ -138,12 +152,12 @@ export default function MembersScreen() {
       </Card>
 
       {/* Member List */}
-      <View style={{ marginTop: SPACING.xl }}>
+      <Card style={{ marginTop: SPACING.lg }}>
         <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
           Members ({group.members?.filter((m) => m.status === 'ACTIVE').length})
         </Text>
 
-        <View style={{ gap: 1, marginTop: SPACING.md }}>
+        <View style={{ marginTop: SPACING.sm }}>
           {group.members?.map((member) => {
             const balance = balanceData?.balances.find((b) => b.userId === member.user_id);
             const isMe = member.user_id === userId;
@@ -156,16 +170,19 @@ export default function MembersScreen() {
                   size={40}
                   ring={isMe}
                 />
-                <View style={{ flex: 1 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <Text style={[styles.memberName, { color: colors.textPrimary }]}>
-                      {member.profile?.full_name ?? 'Unknown'}
-                    </Text>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text
+                    numberOfLines={1}
+                    style={[styles.memberName, { color: colors.textPrimary }]}
+                  >
+                    {member.profile?.full_name ?? 'Unknown'}
+                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 2 }}>
                     {isMe && <Badge label="You" variant="accent" size="sm" />}
                     {member.user_id === group.created_by && <Badge label="Creator" variant="success" size="sm" />}
                     {member.status === 'INACTIVE' && <Badge label="Inactive" variant="neutral" size="sm" />}
+                    <Text style={[styles.memberUsername, { color: colors.textTertiary }]}>@{member.profile?.username}</Text>
                   </View>
-                  <Text style={[styles.memberUsername, { color: colors.textTertiary }]}>@{member.profile?.username}</Text>
                 </View>
                 {balance && (
                   <Text
@@ -191,13 +208,13 @@ export default function MembersScreen() {
             );
           })}
         </View>
-      </View>
+      </Card>
 
       {/* Actions */}
-      <View style={{ marginTop: SPACING.xxl, gap: SPACING.md }}>
+      <Card style={{ marginTop: SPACING.lg, gap: SPACING.md }}>
         <Button title="Export as PDF" onPress={handleExport} variant="outline" fullWidth />
         <Button title="Leave Group" onPress={handleLeave} variant="danger" fullWidth />
-      </View>
+      </Card>
 
       {/* Edit Group Bottom Sheet */}
       <BottomSheet
@@ -284,17 +301,27 @@ const styles = StyleSheet.create({
     ...TYPOGRAPHY.labelLg,
     fontWeight: '700',
   },
-  codeRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  codeBox: {
     alignItems: 'center',
+    gap: SPACING.xs,
+    paddingVertical: SPACING.lg,
+    paddingHorizontal: SPACING.xl,
+    borderRadius: RADIUS.lg,
+    borderWidth: 1,
   },
-  codeLabel: {
+  codeBoxLabel: {
     ...TYPOGRAPHY.caption,
+    fontWeight: '600',
+    letterSpacing: 1,
   },
-  code: {
-    ...TYPOGRAPHY.h2,
-    letterSpacing: 2,
+  codeText: {
+    fontSize: 22,
+    fontWeight: '700',
+    letterSpacing: 4,
+    fontFamily: Platform.select({ ios: 'Menlo', default: 'monospace' }),
+  },
+  codeHint: {
+    ...TYPOGRAPHY.caption,
   },
   qrContainer: {
     alignItems: 'center',

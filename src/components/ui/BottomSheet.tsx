@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Modal, Pressable, Text, StyleSheet, Dimensions, Animated } from 'react-native';
+import { View, Modal, Pressable, Text, StyleSheet, Dimensions, Animated, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { RADIUS, SPACING, TYPOGRAPHY } from '../../constants/theme';
 import { useColors, useShadows, useIsDark } from '../../hooks/use-colors';
 import { impact } from '../../utils/haptics';
@@ -46,32 +46,44 @@ export function BottomSheet({ visible, onClose, title, showDone = true, children
           <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
         </Animated.View>
 
-        <Animated.View
-          style={[
-            { transform: [{ translateY }] },
-            styles.sheet,
-            {
-              backgroundColor: isDark ? 'rgba(24, 20, 48, 0.95)' : 'rgba(250, 250, 255, 0.97)',
-              borderColor: colors.borderLight,
-              ...shadows.bottomSheet,
-            },
-          ]}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.keyboardAvoid}
         >
-          <View style={[styles.handle, { backgroundColor: colors.border }]} />
+          <Animated.View
+            style={[
+              { transform: [{ translateY }] },
+              styles.sheet,
+              {
+                backgroundColor: isDark ? 'rgba(24, 20, 48, 0.95)' : 'rgba(250, 250, 255, 0.97)',
+                borderColor: colors.borderLight,
+                ...shadows.bottomSheet,
+              },
+            ]}
+          >
+            <View style={[styles.handle, { backgroundColor: colors.border }]} />
 
-          {title && (
-            <View style={styles.header}>
-              <Text style={[styles.title, { color: colors.textPrimary }]}>{title}</Text>
-              {showDone && (
-                <Pressable onPress={onClose} hitSlop={10}>
-                  <Text style={[styles.close, { color: colors.accent }]}>Done</Text>
-                </Pressable>
-              )}
-            </View>
-          )}
+            {title && (
+              <View style={styles.header}>
+                <Text style={[styles.title, { color: colors.textPrimary }]}>{title}</Text>
+                {showDone && (
+                  <Pressable onPress={onClose} hitSlop={10}>
+                    <Text style={[styles.close, { color: colors.accent }]}>Done</Text>
+                  </Pressable>
+                )}
+              </View>
+            )}
 
-          <View style={styles.content}>{children}</View>
-        </Animated.View>
+            <ScrollView
+              bounces={false}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={styles.content}
+            >
+              {children}
+            </ScrollView>
+          </Animated.View>
+        </KeyboardAvoidingView>
       </View>
     </Modal>
   );
@@ -79,6 +91,10 @@ export function BottomSheet({ visible, onClose, title, showDone = true, children
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  keyboardAvoid: {
     flex: 1,
     justifyContent: 'flex-end',
   },

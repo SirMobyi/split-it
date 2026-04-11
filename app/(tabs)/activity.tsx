@@ -64,8 +64,9 @@ function getAuditChanges(
   if (action === 'UPDATE' && prev && next) {
     const changes: string[] = [];
     const fields: Record<string, string> = {
-      title: 'Title', amount: 'Amount', description: 'Description',
+      title: 'Title', name: 'Name', amount: 'Amount', description: 'Description',
       transaction_date: 'Date', split_type: 'Split type', status: 'Status', note: 'Note',
+      icon_url: 'Icon',
     };
     for (const [key, label] of Object.entries(fields)) {
       const oldVal = prev[key];
