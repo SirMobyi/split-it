@@ -202,9 +202,12 @@ export function useUpdateGroup() {
       if (error) throw error;
       return data;
     },
-    onSuccess: (_, { groupId }) => {
-      queryClient.invalidateQueries({ queryKey: ['groups'] });
-      queryClient.invalidateQueries({ queryKey: ['group', groupId] });
+    onSuccess: async (_, { groupId }) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['groups'] }),
+        queryClient.invalidateQueries({ queryKey: ['group', groupId] }),
+        queryClient.invalidateQueries({ queryKey: ['activity'] }),
+      ]);
     },
   });
 }
