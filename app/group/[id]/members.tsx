@@ -9,6 +9,7 @@ import { useAuthStore } from '../../../src/stores/auth-store';
 import { exportGroupPDF } from '../../../src/utils/pdf-export';
 import { useGroupExpenses } from '../../../src/hooks/use-expenses';
 import { useGroupPayments } from '../../../src/hooks/use-payments';
+import { supabase } from '../../../src/lib/supabase';
 import { SPACING, TYPOGRAPHY, RADIUS, formatCurrency } from '../../../src/constants/theme';
 import { useColors } from '../../../src/hooks/use-colors';
 import { GroupIcon, GROUP_ICON_NAMES } from '../../../src/components/ui';
@@ -63,11 +64,19 @@ export default function MembersScreen() {
 
   const handleExport = async () => {
     try {
+      const { data: auditLogs } = await supabase
+        .from('audit_log')
+        .select('*, modifier:profiles!modified_by(full_name)')
+        .eq('group_id', groupId!)
+        .order('created_at', { ascending: false })
+        .limit(200);
+
       await exportGroupPDF({
         groupName: group.name,
         expenses: expenses ?? [],
         payments: (payments ?? []) as any,
         members: group.members?.filter((m) => m.status === 'ACTIVE') ?? [],
+        auditLogs: (auditLogs as any) ?? [],
       });
     } catch (e: any) {
       setError('Failed to export PDF');

@@ -1,29 +1,39 @@
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { formatCurrency } from '../constants/theme';
-import type { ExpenseWithSplits, Payment, Profile } from '../types/database';
+import type { ExpenseWithSplits, Payment, Profile, AuditLogEntry } from '../types/database';
+
+interface AuditLogWithModifier extends AuditLogEntry {
+  modifier?: { full_name: string } | null;
+}
 
 export async function exportGroupPDF({
   groupName,
   expenses,
   payments,
   members,
+  auditLogs,
 }: {
   groupName: string;
   expenses: ExpenseWithSplits[];
   payments: (Payment & { payer: Profile; payee: Profile })[];
   members: { profile: Profile }[];
+  auditLogs?: AuditLogWithModifier[];
 }) {
   const expenseRows = expenses
     .map(
-      (e) => `
+      (e) => {
+        const payerSplit = e.splits?.find((s) => s.is_payer);
+        const payer = payerSplit?.user ?? e.creator;
+        return `
       <tr>
         <td>${e.transaction_date}</td>
         <td>${e.title}</td>
-        <td>${e.creator?.full_name ?? 'Unknown'}</td>
+        <td>${payer?.full_name ?? 'Unknown'}</td>
         <td style="text-align:right">${formatCurrency(e.amount)}</td>
         <td>${e.split_type}</td>
-      </tr>`
+      </tr>`;
+      }
     )
     .join('');
 
@@ -76,6 +86,30 @@ export async function exportGroupPDF({
         </thead>
         <tbody>${paymentRows || '<tr><td colspan="5" style="text-align:center;color:#999">No settlements</td></tr>'}</tbody>
       </table>
+
+      ${auditLogs && auditLogs.length > 0 ? `
+      <h2 style="border-color: #F59E0B;">Activity Log</h2>
+      <table>
+        <thead>
+          <tr><th>Date</th><th>User</th><th>Action</th><th>Type</th><th>Details</th></tr>
+        </thead>
+        <tbody>${auditLogs.map((log) => {
+          const state = log.new_state ?? log.previous_state;
+          const nameOrTitle = state ? (state.title || state.name || '') : '';
+          const amount = state?.amount ? formatCurrency(Number(state.amount)) : '';
+          const details = [nameOrTitle, amount].filter(Boolean).join(' · ');
+          const actionColor = log.action === 'CREATE' ? '#10B981' : log.action === 'DELETE' ? '#EF4444' : '#F59E0B';
+          return `
+          <tr>
+            <td>${new Date(log.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
+            <td>${log.modifier?.full_name ?? 'Unknown'}</td>
+            <td style="color:${actionColor};font-weight:600">${log.action}</td>
+            <td>${log.entity_type}</td>
+            <td>${details}</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>
+      ` : ''}
     </body>
     </html>
   `;

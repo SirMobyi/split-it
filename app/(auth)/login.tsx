@@ -1,15 +1,15 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, Platform, Animated } from 'react-native';
 import { router } from 'expo-router';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
-import { LinearGradient } from 'expo-linear-gradient';
+
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button, Input } from '../../src/components/ui';
+import { Button } from '../../src/components/ui';
 import { GradientBackground } from '../../src/components/ui';
 import { supabase } from '../../src/lib/supabase';
 import { useColors } from '../../src/hooks/use-colors';
-import { SPACING, TYPOGRAPHY, GRADIENTS } from '../../src/constants/theme';
+import { SPACING, TYPOGRAPHY } from '../../src/constants/theme';
 
 const authRedirectUrl = Platform.OS === 'web'
   ? window.location.origin
@@ -19,12 +19,8 @@ WebBrowser.maybeCompleteAuthSession();
 
 export default function LoginScreen() {
   const colors = useColors();
-  const [mode, setMode] = useState<'phone' | 'email'>('email');
-  const [phone, setPhone] = useState('');
-  const [email, setEmail] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState('');
 
   // Entrance animations
   const logoOpacity = useRef(new Animated.Value(0)).current;
@@ -47,24 +43,6 @@ export default function LoginScreen() {
 
   const logoStyle = { opacity: logoOpacity, transform: [{ translateY: logoTranslateY }] };
   const formStyle = { opacity: formOpacity, transform: [{ translateY: formTranslateY }] };
-
-  const handlePhoneLogin = async () => {
-    setError('');
-    setMessage('');
-    if (!phone || phone.length < 10) {
-      setError('Please enter a valid phone number');
-      return;
-    }
-    setLoading(true);
-    const formattedPhone = phone.startsWith('+91') ? phone : `+91${phone}`;
-    const { error: authErr } = await supabase.auth.signInWithOtp({ phone: formattedPhone });
-    setLoading(false);
-    if (authErr) {
-      setError(authErr.message);
-    } else {
-      router.push({ pathname: '/(auth)/otp', params: { phone: formattedPhone } });
-    }
-  };
 
   const handleGoogleLogin = async () => {
     setError('');
@@ -104,36 +82,10 @@ export default function LoginScreen() {
     }
   };
 
-  const handleEmailLogin = async () => {
-    setError('');
-    setMessage('');
-    if (!email) {
-      setError('Please enter your email');
-      return;
-    }
-    setLoading(true);
-    const { error: authErr } = await supabase.auth.signInWithOtp({ email });
-    setLoading(false);
-    if (authErr) {
-      setError(authErr.message);
-    } else {
-      router.push({ pathname: '/(auth)/otp', params: { email } });
-    }
-  };
-
   return (
     <GradientBackground variant="ambient">
       <SafeAreaView style={styles.safe}>
-        {/* Decorative blurred circle behind logo */}
-        <View style={styles.decorCircleOuter}>
-          <LinearGradient
-            colors={[...GRADIENTS.lavender] as [string, string, ...string[]]}
-            style={styles.decorCircle}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-          />
-        </View>
-
+        {/* Hero */}
         <Animated.View style={[styles.hero, logoStyle]}>
           <View style={styles.logoRow}>
             <Text style={[styles.logoLight, { color: colors.textPrimary }]}>Split</Text>
@@ -144,83 +96,25 @@ export default function LoginScreen() {
           </Text>
         </Animated.View>
 
-        <Animated.ScrollView
-          style={formStyle}
-          contentContainerStyle={styles.formContent}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={styles.form}>
-            {error ? (
-              <View style={[styles.messageBox, { backgroundColor: colors.dangerDim }]}>
-                <Text style={[styles.messageText, { color: colors.danger }]}>{error}</Text>
-              </View>
-            ) : null}
-
-            {message ? (
-              <View style={[styles.messageBox, { backgroundColor: colors.accentDim }]}>
-                <Text style={[styles.messageText, { color: colors.accent }]}>{message}</Text>
-              </View>
-            ) : null}
-
-            {mode === 'phone' ? (
-              <>
-                <Input
-                  label="Phone Number"
-                  prefix="+91"
-                  placeholder="9876543210"
-                  value={phone}
-                  onChangeText={setPhone}
-                  keyboardType="phone-pad"
-                  maxLength={10}
-                />
-                <Button
-                  title="Send OTP"
-                  onPress={handlePhoneLogin}
-                  loading={loading}
-                  fullWidth
-                />
-              </>
-            ) : (
-              <>
-                <Input
-                  label="Email"
-                  placeholder="you@example.com"
-                  value={email}
-                  onChangeText={setEmail}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                />
-                <Button
-                  title="Send OTP"
-                  onPress={handleEmailLogin}
-                  loading={loading}
-                  fullWidth
-                />
-              </>
-            )}
-
-            <View style={styles.divider}>
-              <View style={[styles.line, { backgroundColor: colors.borderLight }]} />
-              <Text style={[styles.orText, { color: colors.textTertiary }]}>or</Text>
-              <View style={[styles.line, { backgroundColor: colors.borderLight }]} />
+        {/* CTA */}
+        <Animated.View style={[styles.cta, formStyle]}>
+          {error ? (
+            <View style={[styles.errorBox, { backgroundColor: colors.dangerDim }]}>
+              <Text style={[styles.errorText, { color: colors.danger }]}>{error}</Text>
             </View>
+          ) : null}
 
-            <Button
-              title="Continue with Google"
-              onPress={handleGoogleLogin}
-              variant="outline"
-              fullWidth
-            />
+          <Button
+            title="Continue with Google"
+            onPress={handleGoogleLogin}
+            loading={loading}
+            fullWidth
+          />
 
-            <Button
-              title={mode === 'phone' ? 'Use email instead' : 'Use phone instead'}
-              onPress={() => setMode(mode === 'phone' ? 'email' : 'phone')}
-              variant="ghost"
-              fullWidth
-            />
-          </View>
-        </Animated.ScrollView>
+          <Text style={[styles.legal, { color: colors.textTertiary }]}>
+            By continuing, you agree to our Terms of Service and Privacy Policy.
+          </Text>
+        </Animated.View>
       </SafeAreaView>
     </GradientBackground>
   );
@@ -229,22 +123,12 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-  },
-  decorCircleOuter: {
-    position: 'absolute',
-    top: 60,
-    alignSelf: 'center',
-    opacity: 0.25,
-  },
-  decorCircle: {
-    width: 128,
-    height: 128,
-    borderRadius: 64,
+    justifyContent: 'space-between',
   },
   hero: {
-    paddingTop: 80,
-    paddingBottom: 40,
+    flex: 1,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   logoRow: {
     flexDirection: 'row',
@@ -266,33 +150,22 @@ const styles = StyleSheet.create({
     marginTop: 12,
     lineHeight: 26,
   },
-  formContent: {
+  cta: {
     paddingHorizontal: SPACING.xl,
     paddingBottom: SPACING.xxl,
+    gap: SPACING.lg,
   },
-  form: {
-    gap: 20,
-  },
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 8,
-  },
-  line: {
-    flex: 1,
-    height: StyleSheet.hairlineWidth,
-  },
-  orText: {
-    ...TYPOGRAPHY.bodyMd,
-    fontWeight: '500',
-  },
-  messageBox: {
+  errorBox: {
     borderRadius: 12,
     padding: SPACING.lg,
   },
-  messageText: {
+  errorText: {
     ...TYPOGRAPHY.bodyMd,
     fontWeight: '500',
+  },
+  legal: {
+    ...TYPOGRAPHY.caption,
+    textAlign: 'center',
+    lineHeight: 18,
   },
 });

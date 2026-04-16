@@ -171,8 +171,9 @@ function AuthGate({ children }: { children: React.ReactNode }) {
         router.replace(hasSeenOnboarding ? '/(auth)/login' : '/(auth)/onboarding');
       }
     } else if (!profile) {
-      // Logged in but no profile → profile setup
-      if (!inAuthGroup) router.replace('/(auth)/profile-setup');
+      // Logged in but no profile → profile setup (redirect from ANY screen except profile-setup itself)
+      const onProfileSetup = segments.join('/').includes('profile-setup');
+      if (!onProfileSetup) router.replace('/(auth)/profile-setup');
     } else if (inAuthGroup) {
       // Fully authenticated → go to tabs
       router.replace('/(tabs)');

@@ -102,25 +102,43 @@ import type { AuditLogEntry, ExpenseWithSplits } from '../../../src/types/databa
 import { supabase } from '../../../src/lib/supabase';
 import { impact } from '../../../src/utils/haptics';
 
-function getAuditChanges(prev: Record<string, unknown> | null, next: Record<string, unknown> | null): string[] {
-  if (!prev || !next) return [];
-  const changes: string[] = [];
-  const fields: Record<string, string> = {
-    title: 'Title', amount: 'Amount', description: 'Description',
-    transaction_date: 'Date', split_type: 'Split type', status: 'Status', note: 'Note',
-  };
-  for (const [key, label] of Object.entries(fields)) {
-    const oldVal = prev[key];
-    const newVal = next[key];
-    if (oldVal !== undefined && newVal !== undefined && oldVal !== newVal) {
-      if (key === 'amount') {
-        changes.push(`${label}: ${formatCurrency(Number(oldVal))} → ${formatCurrency(Number(newVal))}`);
-      } else {
-        changes.push(`${label}: "${oldVal ?? '(empty)'}" → "${newVal ?? '(empty)'}"`);
+function getAuditChanges(action: string, prev: Record<string, unknown> | null, next: Record<string, unknown> | null): string[] {
+  if (action === 'CREATE' && next) {
+    const details: string[] = [];
+    if (next.title || next.name) details.push(`Created "${next.title || next.name}"`);
+    if (next.amount) details.push(`Amount: ${formatCurrency(Number(next.amount))}`);
+    return details;
+  }
+
+  if (action === 'DELETE' && prev) {
+    const details: string[] = [];
+    const nameOrTitle = prev.title || prev.name;
+    if (nameOrTitle) details.push(`Deleted "${nameOrTitle}"`);
+    if (prev.amount) details.push(`Was ${formatCurrency(Number(prev.amount))}`);
+    return details;
+  }
+
+  if (action === 'UPDATE' && prev && next) {
+    const changes: string[] = [];
+    const fields: Record<string, string> = {
+      title: 'Title', amount: 'Amount', description: 'Description',
+      transaction_date: 'Date', split_type: 'Split type', status: 'Status', note: 'Note',
+    };
+    for (const [key, label] of Object.entries(fields)) {
+      const oldVal = prev[key];
+      const newVal = next[key];
+      if (oldVal !== undefined && newVal !== undefined && oldVal !== newVal) {
+        if (key === 'amount') {
+          changes.push(`${label}: ${formatCurrency(Number(oldVal))} → ${formatCurrency(Number(newVal))}`);
+        } else {
+          changes.push(`${label}: "${oldVal ?? '(empty)'}" → "${newVal ?? '(empty)'}"`);
+        }
       }
     }
+    return changes;
   }
-  return changes;
+
+  return [];
 }
 
 function groupExpensesByMonthYear(expenses: ExpenseWithSplits[]) {
@@ -304,12 +322,13 @@ function AuditLogModal({
       ) : (
         <View style={{ gap: 16, paddingTop: 8 }}>
           {logs.map((log) => {
-            const changes = getAuditChanges(log.previous_state, log.new_state);
+            const changes = getAuditChanges(log.action, log.previous_state, log.new_state);
+            const changeColor = log.action === 'CREATE' ? colors.accent : log.action === 'DELETE' ? colors.danger : colors.warning;
             return (
               <View key={log.id} style={styles.auditRow}>
                 <View style={{ flex: 1, gap: 2 }}>
                   <Text style={[styles.auditUser, { color: colors.textPrimary }]}>
-                    {(log as any).modifier?.full_name ?? 'Unknown'}
+                    {(log as any).modifier?.full_name ?? 'Unknown'} · {log.action.toLowerCase()}d
                   </Text>
                   <Text style={[styles.auditTime, { color: colors.textTertiary }]}>
                     {format(new Date(log.created_at), 'dd MMM yyyy, hh:mm a')}
@@ -317,7 +336,7 @@ function AuditLogModal({
                   {changes.length > 0 && (
                     <View style={styles.changesList}>
                       {changes.map((c, i) => (
-                        <Text key={i} style={[styles.changeText, { color: colors.warning }]}>{c}</Text>
+                        <Text key={i} style={[styles.changeText, { color: changeColor }]}>{c}</Text>
                       ))}
                     </View>
                   )}

@@ -9,11 +9,13 @@ import { useColors } from '../../src/hooks/use-colors';
 import { SPACING, TYPOGRAPHY, RADIUS } from '../../src/constants/theme';
 import { impact } from '../../src/utils/haptics';
 
+// Supabase email OTP default. Change in Dashboard → Auth → Providers → Email → Email OTP Length
+const OTP_LENGTH = 6;
+
 export default function OTPScreen() {
   const colors = useColors();
   const { phone, email } = useLocalSearchParams<{ phone?: string; email?: string }>();
   const isEmail = !!email;
-  const OTP_LENGTH = isEmail ? 8 : 6;
   const [otp, setOtp] = useState<string[]>(Array(OTP_LENGTH).fill(''));
   const [loading, setLoading] = useState(false);
   const [focusedIndex, setFocusedIndex] = useState(0);
@@ -32,7 +34,24 @@ export default function OTPScreen() {
 
   const formStyle = { opacity: formOpacity, transform: [{ translateY: formTranslateY }] };
 
+  const fillOtp = (code: string) => {
+    const digits = code.replace(/\D/g, '').slice(0, OTP_LENGTH).split('');
+    const newOtp = Array(OTP_LENGTH).fill('');
+    digits.forEach((d, i) => { newOtp[i] = d; });
+    setOtp(newOtp);
+    impact('light');
+    // Focus last filled or next empty
+    const nextIndex = Math.min(digits.length, OTP_LENGTH - 1);
+    inputs.current[nextIndex]?.focus();
+  };
+
   const handleChange = (text: string, index: number) => {
+    // iOS autofill / paste: text longer than 1 char → distribute across all boxes
+    if (text.length > 1) {
+      fillOtp(text);
+      return;
+    }
+
     const newOtp = [...otp];
     newOtp[index] = text;
     setOtp(newOtp);
@@ -47,6 +66,9 @@ export default function OTPScreen() {
 
   const handleKeyPress = (key: string, index: number) => {
     if (key === 'Backspace' && !otp[index] && index > 0) {
+      const newOtp = [...otp];
+      newOtp[index - 1] = '';
+      setOtp(newOtp);
       inputs.current[index - 1]?.focus();
     }
   };
@@ -72,6 +94,13 @@ export default function OTPScreen() {
     }
   };
 
+  // Auto-verify when all digits filled
+  useEffect(() => {
+    if (otp.every((d) => d !== '') && otp.join('').length === OTP_LENGTH) {
+      handleVerify();
+    }
+  }, [otp]);
+
   return (
     <GradientBackground variant="ambient">
       <SafeAreaView style={{ flex: 1 }}>
@@ -81,7 +110,7 @@ export default function OTPScreen() {
               {isEmail ? 'Check your email' : 'Verify your number'}
             </Text>
             <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-              Enter the code sent to {isEmail ? email : phone}
+              Enter the 6-digit code sent to {isEmail ? email : phone}
             </Text>
 
             <View style={styles.otpContainer}>
@@ -103,7 +132,9 @@ export default function OTPScreen() {
                   onKeyPress={({ nativeEvent }) => handleKeyPress(nativeEvent.key, i)}
                   onFocus={() => setFocusedIndex(i)}
                   keyboardType="number-pad"
-                  maxLength={1}
+                  textContentType={i === 0 ? 'oneTimeCode' : 'none'}
+                  autoComplete={i === 0 ? 'one-time-code' : 'off'}
+                  maxLength={i === 0 ? OTP_LENGTH : 1}
                   selectTextOnFocus
                 />
               ))}
@@ -155,10 +186,10 @@ const styles = StyleSheet.create({
   otpContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 10,
+    gap: 12,
   },
   otpInput: {
-    width: 44,
+    width: 48,
     height: 56,
     borderRadius: RADIUS.lg,
     fontSize: 22,
