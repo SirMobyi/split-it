@@ -57,6 +57,19 @@
         }
       ],
       "expo-web-browser"
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "d616588e-5a7e-442a-8705-fec03c7ffc4a"
+      }
+    },
+    "owner": "mobyi",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/d616588e-5a7e-442a-8705-fec03c7ffc4a"
+    }
   }
 }
